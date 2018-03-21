@@ -4,9 +4,23 @@ import pyqtgraph as pg
 from serial import SerialException
 from photometry_host import Photometry_host
 
-# Parameters
+# Signal_history ------------------------------------------------------------
 
-buffer_size = 25
+class Signal_history():
+    # Class to store the history of a signal.
+
+    def __init__(self, history_length):
+        self.history = np.zeros(history_length)
+
+    def update(self, new_data):
+        # Store new data, ditch oldest data.
+        data_len = len(new_data)
+        self.history = np.roll(self.history, -data_len)
+        self.history[-data_len:] = new_data
+
+# Parameters ---------------------------------------------------------
+
+buffer_size = 100
 sampling_rate = 1000   # Hz
 history_dur = 5        # Duration of plotted signal history (seconds)
 
@@ -14,29 +28,33 @@ history_dur = 5        # Duration of plotted signal history (seconds)
 
 history_length = int(sampling_rate*history_dur)
 x = np.linspace(-history_dur, 0, history_length)
-signal  = np.zeros(history_length)
-digital = np.zeros(history_length)    
+signal_1  = Signal_history(history_length)
+signal_2  = Signal_history(history_length)
+digital_1 = Signal_history(history_length) 
+digital_2 = Signal_history(history_length) 
 board = None
 port  = 'com23'
 running = False
-
 
 # Update -----------------------------------------------------------
 
 def update():
     # Read data from the serial port and update the plot.
-    global analog_plot, signal, digital, board
+    global analog_plot, signal_1, signal_2, digital_1, digital_2, board
     if board:
         data = board.process_data()
         if data:
-            new_signal, new_digital = data
-            new_signal = new_signal * 3.3 / (1 << 15)
-            signal = np.roll(signal, -board.buffer_size)
-            signal[-board.buffer_size:] = new_signal
-            digital = np.roll(digital, -board.buffer_size)
-            digital[-board.buffer_size:] = new_digital
-            analog_plot.setData(x, signal)
-            digital_plot.setData(x, digital)
+            new_signal_1, new_signal_2, new_digital_1, new_digital_2 = data
+            new_signal_1 = new_signal_1 * 3.3 / (1 << 15)
+            new_signal_2 = new_signal_2 * 3.3 / (1 << 15)
+            signal_1.update(new_signal_1)
+            signal_2.update(new_signal_2)
+            digital_1.update(new_digital_1)
+            digital_2.update(new_digital_2)
+            analog_plot_1.setData(x, signal_1.history)
+            analog_plot_2.setData(x, signal_2.history)
+            digital_plot_1.setData(x, digital_1.history)
+            digital_plot_2.setData(x, digital_2.history)
             QtGui.QApplication.processEvents()
 
 # Button and box functions -------------------------------------------
@@ -95,8 +113,10 @@ quit_btn    = QtGui.QPushButton('Quit')
 
 # Setup Axis.
 
-analog_plot  = analog_axis.plot(x, signal)
-digital_plot = digital_axis.plot(x, digital)
+analog_plot_1  = analog_axis.plot( x, signal_1.history , pen=pg.mkPen('g'))
+analog_plot_2  = analog_axis.plot( x, signal_1.history , pen=pg.mkPen('r'))
+digital_plot_1 = digital_axis.plot(x, digital_1.history, pen=pg.mkPen('b'))
+digital_plot_2 = digital_axis.plot(x, digital_2.history, pen=pg.mkPen('y'))
 analog_axis.setYRange(0, 3.3, padding=0)
 analog_axis.setXRange( -history_dur, history_dur*0.02, padding=0)
 digital_axis.setYRange(-0.1, 1.1, padding=0)
@@ -131,9 +151,9 @@ stop_btn.setEnabled(False)
 
 # Setup timer to call update().
 
-timer = QtCore.QTimer()
-timer.timeout.connect(update)
-timer.start(10)
+update_timer = QtCore.QTimer()
+update_timer.timeout.connect(update)
+update_timer.start(10)
 
 # Start App.
 

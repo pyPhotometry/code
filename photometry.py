@@ -4,15 +4,17 @@ from array import array
 
 class Photometry():
 
-    def __init__(self, analog_pin='X5', digital_pin='X1', sampling_rate=256, buffer_size=256,
-                 oversampling_rate=1000000):
+    def __init__(self, sampling_rate=256, buffer_size=256, oversampling_rate=1e6, 
+                 analog_pin_1='X5', analog_pin_2='X6', digital_pin_1='X1', digital_pin_2='X2'):
         self.buffer_size = buffer_size
         self.sampling_rate = sampling_rate
-        self.ADC = pyb.ADC(analog_pin)
-        self.DI = pyb.Pin(digital_pin, pyb.Pin.IN, pyb.Pin.PULL_DOWN)
-        self.oversampling_buffer = array('H',[0]*64)
-        self.oversampling_timer = pyb.Timer(2)
-        self.oversampling_timer.init(freq=oversampling_rate)
+        self.ADC1 = pyb.ADC(analog_pin_1)
+        self.ADC2 = pyb.ADC(analog_pin_2)
+        self.DI1 = pyb.Pin(digital_pin_1, pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+        self.DI2 = pyb.Pin(digital_pin_2, pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+        self.ovs_buffer = array('H',[0]*64) # Oversampling buffer
+        self.ovs_timer = pyb.Timer(2)       # Oversampling timer.
+        self.ovs_timer.init(freq=oversampling_rate)
         self.sampling_timer = pyb.Timer(3)
         self.sample_buffers = (array('H',[0]*(buffer_size+2)), array('H',[0]*(buffer_size+2)))
         self.buffer_data_mv = (memoryview(self.sample_buffers[0])[:-2], 
@@ -34,14 +36,19 @@ class Photometry():
         self.sampling_timer.deinit()
         gc.enable()
 
+    @micropython.native
     def _timer_ISR(self, t):
         # Read a sample to the buffer using oversampling and averaging.
-        self.ADC.read_timed(self.oversampling_buffer, self.oversampling_timer)
-        self.sample_buffers[self.write_buffer][self.write_index] = \
-            sum(self.oversampling_buffer) >> 3
-        # Store digital input signal in highest bit of sample.
-        if self.DI.value(): 
+        self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
+        self.sample_buffers[self.write_buffer][self.write_index] = sum(self.ovs_buffer) >> 3
+        if self.DI1.value(): 
             self.sample_buffers[self.write_buffer][self.write_index] += 0x8000
+        self.write_index += 1
+        self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
+        self.sample_buffers[self.write_buffer][self.write_index] = sum(self.ovs_buffer) >> 3
+        if self.DI2.value(): 
+            self.sample_buffers[self.write_buffer][self.write_index] += 0x8000
+        # Store digital input signal in highest bit of sample.
         self.write_index = (self.write_index + 1) % self.buffer_size
         if self.write_index == 0: # Buffer full, switch buffers.
             self.write_buffer = 1 - self.write_buffer

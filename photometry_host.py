@@ -36,8 +36,13 @@ class Photometry_host(Pyboard):
             data = chunk[:-2]
             signal  = data & 0x7fff # Analog signal is least significant 15 bits.
             digital = data > 0x7fff # Digital signal is most significant bit.
+            # Alternating samples are signals 1 and 2.
+            signal_1 = signal[ ::2]
+            signal_2 = signal[1::2]
+            digital_1 = digital[ ::2]
+            digital_2 = digital[1::2]
             if not chunk[-1] == 0: print('Bad end bytes')
             if not (sum(data) & 0xffff) == chunk[-2]: 
                 print('Bad checksum')
                 self.serial.reset_input_buffer()
-            return signal, digital
+            return signal_1, signal_2, digital_1, digital_2
