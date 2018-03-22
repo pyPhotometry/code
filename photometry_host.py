@@ -6,19 +6,25 @@ from pyboard import Pyboard, PyboardError
 class Photometry_host(Pyboard):
     '''Class for aquiring data from a micropython photometry system on a host computer.'''
 
-    def __init__(self, port, buffer_size=256, sampling_rate=256):
+    def __init__(self, port, mode='GCaMP/iso', buffer_size=256):
         '''Open connection to pyboard and instantiate Photometry class on pyboard with
         provided parameters.'''
+        assert mode in ['GCaMP/RFP', 'GCaMP/iso'], \
+            "Invalid mode, can be 'GCaMP/RFP' or 'GCaMP/iso'."
+        self.mode = mode
+        if mode == 'GCaMP/RFP': # 2 channel GFP/RFP acquisition mode.
+            self.sampling_rate = 1000 # Hz.
+        elif mode == 'GCaMP/iso': # GCaMP and isosbestic recorded on same channel using time division multiplexing.
+            self.sampling_rate = 168  # Hz.
         self.buffer_size   = buffer_size
-        self.sampling_rate = sampling_rate
         self.chunk_n_bytes = (buffer_size+2)*2
 
         super().__init__(port, baudrate=115200)
         self.enter_raw_repl()
         self.exec('import photometry')
 
-        self.exec('p = photometry.Photometry(sampling_rate={}, buffer_size={})'
-                  .format(sampling_rate, buffer_size))
+        self.exec("p = photometry.Photometry(mode='{}', buffer_size={})"
+                  .format(mode, buffer_size))
 
     def start(self):
         '''Start data aquistion and streaming on the pyboard.'''

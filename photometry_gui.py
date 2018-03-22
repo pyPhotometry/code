@@ -20,9 +20,9 @@ class Signal_history():
 
 # Parameters ---------------------------------------------------------
 
-buffer_size = 100
-sampling_rate = 1000   # Hz
-history_dur = 5        # Duration of plotted signal history (seconds)
+buffer_size = 10
+sampling_rate = 168  # Hz
+history_dur = 5      # Duration of plotted signal history (seconds)
 
 # Variables
 
@@ -33,6 +33,7 @@ signal_2  = Signal_history(history_length)
 digital_1 = Signal_history(history_length) 
 digital_2 = Signal_history(history_length) 
 board = None
+mode  = 'GCaMP/iso'
 port  = 'com23'
 running = False
 
@@ -59,6 +60,12 @@ def update():
 
 # Button and box functions -------------------------------------------
 
+def select_mode(selected_mode):
+    global mode
+    print('Mode set to: ' + selected_mode)
+    mode = selected_mode
+
+
 def port_text_change(text):
     global port
     port = text
@@ -66,10 +73,12 @@ def port_text_change(text):
 def connect():
     global port, board
     try:
-        board = Photometry_host(port, buffer_size=buffer_size, sampling_rate=sampling_rate)
+        board = Photometry_host(port, mode=mode, buffer_size=buffer_size)
         start_btn.setEnabled(True)
         connect_btn.setEnabled(False)
+        mode_select.setEnabled(False)
         port_text.setText('Connected')
+        port_text.setEnabled(False)
     except SerialException:
         port_text.setText('Connection failed')
 
@@ -104,7 +113,11 @@ w.setWindowTitle('Photometry GUI')
 
 analog_axis  = pg.PlotWidget(title="Analog signal" , labels={'left':'Volts'})
 digital_axis = pg.PlotWidget(title="Digital signal", labels={'left': 'Level', 'bottom':'Time (seconds)'})
-port_text_label = QtGui.QLabel("Serial port:")
+mode_label = QtGui.QLabel("Mode:")
+mode_select = QtGui.QComboBox()
+mode_select.addItem('GCaMP/iso')
+mode_select.addItem('GCaMP/RFP')
+port_label = QtGui.QLabel("Serial port:")
 port_text = QtGui.QLineEdit(port)
 connect_btn = QtGui.QPushButton('Connect')
 start_btn   = QtGui.QPushButton('Start')
@@ -127,7 +140,9 @@ digital_axis.setXRange(-history_dur, history_dur*0.02, padding=0)
 vertical_layout   = QtGui.QVBoxLayout()
 horizontal_layout = QtGui.QHBoxLayout()
 
-horizontal_layout.addWidget(port_text_label)
+horizontal_layout.addWidget(mode_label)
+horizontal_layout.addWidget(mode_select)
+horizontal_layout.addWidget(port_label)
 horizontal_layout.addWidget(port_text)
 horizontal_layout.addWidget(connect_btn)
 horizontal_layout.addWidget(start_btn)
@@ -139,8 +154,8 @@ vertical_layout.addWidget(digital_axis, 25)
 
 w.setLayout(vertical_layout)
 
-# Connect buttons
-
+# Connect widgets
+mode_select.activated[str].connect(select_mode)
 port_text.textChanged.connect(port_text_change)
 connect_btn.clicked.connect(connect)
 start_btn.clicked.connect(start)
