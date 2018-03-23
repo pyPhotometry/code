@@ -20,6 +20,7 @@ class Photometry_host(Pyboard):
             self.buffer_size   = 16
         assert self.buffer_size % 2 == 0, 'Buffer size must be an even number.'
         self.chunk_n_bytes = (self.buffer_size+2)*2
+        self.data_file = None
 
         super().__init__(port, baudrate=115200)
         self.enter_raw_repl()
@@ -33,8 +34,19 @@ class Photometry_host(Pyboard):
         self.serial.reset_input_buffer()
         self.exec_raw_no_follow('p.run()')
 
+    def record(self, file_path):
+        self.data_file = open(file_path, 'wb')
+
+    def stop_recording(self):
+        if self.data_file:
+            self.data_file.close()
+        self.data_file = None
+
     def stop(self):
         self.serial.write(b'\r\x03\x03') # ctrl+c twice.
+        if self.data_file:
+            self.stop_recording()
+
 
     def process_data(self):
         '''Read a chunk of data from the serial line, extract signals and check end bytes.
@@ -53,4 +65,6 @@ class Photometry_host(Pyboard):
             if not (sum(data) & 0xffff) == chunk[-2]: 
                 print('Bad checksum')
                 self.serial.reset_input_buffer()
+            if self.data_file:
+                self.data_file.write(data.tobytes())
             return signal_1, signal_2, digital_1, digital_2

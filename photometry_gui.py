@@ -1,8 +1,10 @@
 import numpy as np
+import os
 from pyqtgraph.Qt import QtGui, QtCore
 import pyqtgraph as pg
 from serial import SerialException
 from sklearn.linear_model import LinearRegression
+from datetime import datetime
 from photometry_host import Photometry_host
 
 # Signal_history ------------------------------------------------------------
@@ -28,6 +30,8 @@ trig_window_dur = [-0.5,3] # Window duration for event triggered signals (second
 board = None
 mode  = 'GCaMP/iso'
 port  = 'com23'
+data_dir = 'select directory'
+subject_ID = 's001'
 running = False
 OLS = LinearRegression()
 ev_trig_ave = None # Event triggered average.
@@ -85,6 +89,15 @@ def port_text_change(text):
     global port
     port = text
 
+def data_dir_text_change(text):
+    global data_dir
+    data_dir = text
+    data_dir_text.setStyleSheet("color: rgb(0, 0, 0);")
+
+def subject_text_change(text):
+    global subject_ID
+    subject_ID = text
+
 def connect():
     global port, board, signal_1, signal_2, digital_1, digital_2, x, x_et, trig_window
     try:
@@ -108,15 +121,36 @@ def connect():
     except SerialException:
         status_text.setText('Connection failed')
 
+def select_data_dir():
+    global data_dir
+    data_dir = QtGui.QFileDialog.getExistingDirectory(w, 'Select data folder')
+    data_dir_text.setText(data_dir)
+    data_dir_text.setStyleSheet("color: rgb(0, 0, 0);")
+
 def start():
     global board, running
     update_timer.start(10)
     board.start()
     running = True
     start_button.setEnabled(False)
+    record_button.setEnabled(True)
     stop_button.setEnabled(True)
     status_text.setText('Runnig')
-    subject_text.setEnabled(False)
+
+def record():
+    global data_dir, subject_ID, board
+    if os.path.isdir(data_dir):
+        file_path = os.path.join(data_dir, subject_ID + 
+                                 datetime.now().strftime('-%Y-%m-%d-%H%M%S') + '.ppd')
+        board.record(file_path)
+        record_button.setEnabled(False)
+        subject_text.setEnabled(False)
+        data_dir_text.setEnabled(False)
+        status_text.setText('Recording')
+        recording_text.setText('Recording  ')
+    else:
+        data_dir_text.setText('Invalid directory')
+        data_dir_text.setStyleSheet("color: rgb(255, 0, 0);")
 
 def stop():
     global board, running
@@ -124,8 +158,11 @@ def stop():
     board.stop()
     running = False
     stop_button.setEnabled(False)
+    subject_text.setEnabled(True)
+    data_dir_text.setEnabled(True)
     start_available_timer.start(500)
     status_text.setText('Connected')
+    recording_text.setText('')
 
 def start_available():
     start_button.setEnabled(True)
@@ -146,6 +183,7 @@ w = QtGui.QWidget()
 w.setWindowTitle('Photometry GUI')
 status_label = QtGui.QLabel("Status:")
 status_text = QtGui.QLineEdit('Not connected')
+status_text.setFixedWidth(100)
 status_text.setStyleSheet('background-color:rgb(210, 210, 210);')
 status_text.setReadOnly(True)
 mode_label = QtGui.QLabel("Mode:")
@@ -154,8 +192,14 @@ mode_select.addItem('GCaMP/iso')
 mode_select.addItem('GCaMP/RFP')
 port_label = QtGui.QLabel("Serial port:")
 port_text = QtGui.QLineEdit(port)
+port_text.setFixedWidth(60)
+data_dir_label = QtGui.QLabel("Data dir:")
+data_dir_text = QtGui.QLineEdit(data_dir)
+data_dir_button = QtGui.QPushButton('...')
+data_dir_button.setFixedWidth(30)
 subject_label = QtGui.QLabel("Subject ID:")
-subject_text = QtGui.QLineEdit()
+subject_text = QtGui.QLineEdit(subject_ID)
+subject_text.setFixedWidth(60)
 connect_button = QtGui.QPushButton('Connect')
 start_button = QtGui.QPushButton('Start')
 record_button= QtGui.QPushButton('Record')
@@ -170,13 +214,21 @@ ev_trig_axis = pg.PlotWidget(title="Event triggered", labels={'left': 'Volts', '
 # Setup Axis.
 
 analog_axis.addLegend(offset=(10, 10))
+
 analog_plot_1  = analog_axis.plot(pen=pg.mkPen('g'), name='GCaMP'  )
 analog_plot_2  = analog_axis.plot(pen=pg.mkPen('r'), name='control')
 analog_axis.setYRange(0, 3.3, padding=0)
 analog_axis.setXRange( -history_dur, history_dur*0.02, padding=0)
 
-digital_plot_1 = digital_axis.plot(pen=pg.mkPen('b'))
-digital_plot_2 = digital_axis.plot(pen=pg.mkPen('y'))
+recording_text = pg.TextItem(text='', color=(255,0,0))
+recording_text.setFont(QtGui.QFont('arial',16,QtGui.QFont.Bold))
+analog_axis.addItem(recording_text)
+recording_text.setParentItem(analog_axis.getViewBox())
+recording_text.setPos(100,10)
+
+digital_axis.addLegend(offset=(10, 10))
+digital_plot_1 = digital_axis.plot(pen=pg.mkPen('b'), name='digital 1')
+digital_plot_2 = digital_axis.plot(pen=pg.mkPen('y'), name='digital 2')
 digital_axis.setYRange(-0.1, 1.1, padding=0)
 digital_axis.setXRange(-history_dur, history_dur*0.02, padding=0)
 
@@ -201,16 +253,19 @@ horizontal_layout_1.addWidget(mode_label)
 horizontal_layout_1.addWidget(mode_select)
 horizontal_layout_1.addWidget(port_label)
 horizontal_layout_1.addWidget(port_text)
+horizontal_layout_1.addWidget(connect_button)
+horizontal_layout_1.addWidget(data_dir_label)
+horizontal_layout_1.addWidget(data_dir_text)
+horizontal_layout_1.addWidget(data_dir_button)
 horizontal_layout_1.addWidget(subject_label)
 horizontal_layout_1.addWidget(subject_text)
-horizontal_layout_1.addWidget(connect_button)
 horizontal_layout_1.addWidget(start_button)
 horizontal_layout_1.addWidget(record_button)
 horizontal_layout_1.addWidget(stop_button)
 horizontal_layout_1.addWidget(quit_button)
 
-horizontal_layout_2.addWidget(sig_corr_axis)
-horizontal_layout_2.addWidget(ev_trig_axis)
+horizontal_layout_2.addWidget(sig_corr_axis, 40)
+horizontal_layout_2.addWidget(ev_trig_axis, 60)
 
 vertical_layout.addLayout(horizontal_layout_1)
 vertical_layout.addWidget(analog_axis,  50)
@@ -222,13 +277,20 @@ w.setLayout(vertical_layout)
 # Connect widgets
 mode_select.activated[str].connect(select_mode)
 port_text.textChanged.connect(port_text_change)
+data_dir_text.textChanged.connect(data_dir_text_change)
+subject_text.textChanged.connect(subject_text_change)
 connect_button.clicked.connect(connect)
+data_dir_button.clicked.connect(select_data_dir)
 start_button.clicked.connect(start)
+record_button.clicked.connect(record)
 stop_button.clicked.connect(stop)
 quit_button.clicked.connect(quit)
 start_button.setEnabled(False)
 record_button.setEnabled(False)
 stop_button.setEnabled(False)
+
+
+
 
 # Setup Timers.
 
