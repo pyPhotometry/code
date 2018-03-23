@@ -4,18 +4,17 @@ from array import array
 
 class Photometry():
 
-    def __init__(self, mode='GCaMP/iso', buffer_size=256, analog_in_1='X5', analog_in_2='X6',
+    def __init__(self, mode, buffer_size, sampling_rate, analog_in_1='X5', analog_in_2='X6', 
                  digital_in_1='X1', digital_in_2='X2', digital_out_1='X12', digital_out_2='X11'):
         assert mode in ['GCaMP/RFP', 'GCaMP/iso'], \
             "Invalid mode. Mode can be 'GCaMP/RFP' or 'GCaMP/iso'."
         self.mode = mode
         if mode == 'GCaMP/RFP': # 2 channel GFP/RFP acquisition mode.
-            self.sampling_rate = 1000    # Hz.
             self.oversampling_rate = 3e5 # Hz.
         elif mode == 'GCaMP/iso': # GCaMP and isosbestic recorded on same channel using time division multiplexing.
-            self.sampling_rate = 168        # Hz.
             self.oversampling_rate = 64e3   # Hz.
         self.buffer_size = buffer_size
+        self.sampling_rate = sampling_rate
         self.ADC1 = pyb.ADC(analog_in_1)
         self.ADC2 = pyb.ADC(analog_in_2)
         self.DI1 = pyb.Pin(digital_in_1, pyb.Pin.IN, pyb.Pin.PULL_DOWN)

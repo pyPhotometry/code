@@ -10,21 +10,23 @@ class Photometry_host(Pyboard):
         '''Open connection to pyboard and instantiate Photometry class on pyboard with
         provided parameters.'''
         assert mode in ['GCaMP/RFP', 'GCaMP/iso'], \
-            "Invalid mode, can be 'GCaMP/RFP' or 'GCaMP/iso'."
+            "Invalid mode, value values: 'GCaMP/RFP' or 'GCaMP/iso'."
         self.mode = mode
         if mode == 'GCaMP/RFP': # 2 channel GFP/RFP acquisition mode.
             self.sampling_rate = 1000 # Hz.
-        elif mode == 'GCaMP/iso': # GCaMP and isosbestic recorded on same channel using time division multiplexing.
-            self.sampling_rate = 168  # Hz.
-        self.buffer_size = int(self.sampling_rate/10)
+            self.buffer_size   = 100
+        elif mode == 'GCaMP/iso': # GCaMP and isosbestic using time division multiplexing.
+            self.sampling_rate = 160  # Hz.
+            self.buffer_size   = 16
+        assert self.buffer_size % 2 == 0, 'Buffer size must be an even number.'
         self.chunk_n_bytes = (self.buffer_size+2)*2
 
         super().__init__(port, baudrate=115200)
         self.enter_raw_repl()
         self.exec('import photometry')
 
-        self.exec("p = photometry.Photometry(mode='{}', buffer_size={})"
-                  .format(self.mode, self.buffer_size))
+        self.exec("p = photometry.Photometry(mode='{}', buffer_size={}, sampling_rate={})"
+                  .format(self.mode, self.buffer_size, self.sampling_rate))
 
     def start(self):
         '''Start data aquistion and streaming on the pyboard.'''
