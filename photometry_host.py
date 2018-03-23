@@ -6,7 +6,7 @@ from pyboard import Pyboard, PyboardError
 class Photometry_host(Pyboard):
     '''Class for aquiring data from a micropython photometry system on a host computer.'''
 
-    def __init__(self, port, mode='GCaMP/iso', buffer_size=256):
+    def __init__(self, port, mode='GCaMP/iso'):
         '''Open connection to pyboard and instantiate Photometry class on pyboard with
         provided parameters.'''
         assert mode in ['GCaMP/RFP', 'GCaMP/iso'], \
@@ -16,15 +16,15 @@ class Photometry_host(Pyboard):
             self.sampling_rate = 1000 # Hz.
         elif mode == 'GCaMP/iso': # GCaMP and isosbestic recorded on same channel using time division multiplexing.
             self.sampling_rate = 168  # Hz.
-        self.buffer_size   = buffer_size
-        self.chunk_n_bytes = (buffer_size+2)*2
+        self.buffer_size = int(self.sampling_rate/10)
+        self.chunk_n_bytes = (self.buffer_size+2)*2
 
         super().__init__(port, baudrate=115200)
         self.enter_raw_repl()
         self.exec('import photometry')
 
         self.exec("p = photometry.Photometry(mode='{}', buffer_size={})"
-                  .format(mode, buffer_size))
+                  .format(self.mode, self.buffer_size))
 
     def start(self):
         '''Start data aquistion and streaming on the pyboard.'''
