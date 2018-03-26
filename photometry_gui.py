@@ -16,7 +16,7 @@ class Signal_history():
         self.history = np.zeros(history_length, dtype)
 
     def update(self, new_data):
-        # Store new data samples, ditch oldest data.
+        # Move old data along buffer, store new data samples.
         data_len = len(new_data)
         self.history = np.roll(self.history, -data_len)
         self.history[-data_len:] = new_data
@@ -98,26 +98,27 @@ def subject_text_change(text):
     global subject_ID
     subject_ID = text
 
+def rate_text_change(text):
+    if text:
+        try:
+            sampling_rate = int(text)
+        except ValueError:
+            rate_text.setText(str(board.sampling_rate))
+            return
+        set_rate = board.set_sampling_rate(sampling_rate)
+        rate_text.setText(str(set_rate))
+
 def connect():
-    global port, board, signal_1, signal_2, digital_1, digital_2, x, x_et, trig_window
+    global port, board
     try:
         board = Photometry_host(port, mode=mode)
-        # Setup variables.
-        history_length = int(board.sampling_rate*history_dur)
-        x = np.linspace(-history_dur, 0, history_length) # X axis for timeseries plots.
-        trig_window = (np.array(trig_window_dur)*board.sampling_rate).astype(int) # Window duration for event triggered signals (samples [pre, post])
-        x_et = np.linspace(*trig_window_dur, trig_window[1]-trig_window[0]) # X axis for event triggered plots.
-        # Instantiate signal buffers.
-        signal_1  = Signal_history(history_length)
-        signal_2  = Signal_history(history_length)
-        digital_1 = Signal_history(history_length, int) 
-        digital_2 = Signal_history(history_length, int)
-        # Update UI.
         start_button.setEnabled(True)
         connect_button.setEnabled(False)
         mode_select.setEnabled(False)
-        status_text.setText('Connected')
         port_text.setEnabled(False)
+        rate_text.setEnabled(True)
+        status_text.setText('Connected')
+        rate_text.setText(str(board.sampling_rate))
     except SerialException:
         status_text.setText('Connection failed')
 
@@ -128,14 +129,27 @@ def select_data_dir():
     data_dir_text.setStyleSheet("color: rgb(0, 0, 0);")
 
 def start():
-    global board, running
+    global board, running, signal_1, signal_2, digital_1, digital_2, x, x_et, trig_window
+    # Setup variables dependent on sampling rate.
+    history_length = int(board.sampling_rate*history_dur)
+    x = np.linspace(-history_dur, 0, history_length) # X axis for timeseries plots.
+    trig_window = (np.array(trig_window_dur)*board.sampling_rate).astype(int) # Window duration for event triggered signals (samples [pre, post])
+    x_et = np.linspace(*trig_window_dur, trig_window[1]-trig_window[0]) # X axis for event triggered plots.
+    # Instantiate signal buffers.
+    signal_1  = Signal_history(history_length)
+    signal_2  = Signal_history(history_length)
+    digital_1 = Signal_history(history_length, int) 
+    digital_2 = Signal_history(history_length, int)
+    # Start acquisition.
     update_timer.start(10)
     board.start()
     running = True
+    # Update UI.
     start_button.setEnabled(False)
     record_button.setEnabled(True)
     stop_button.setEnabled(True)
-    status_text.setText('Runnig')
+    rate_text.setEnabled(False)
+    status_text.setText('Running')
 
 def record():
     global data_dir, subject_ID, board
@@ -160,6 +174,7 @@ def stop():
     stop_button.setEnabled(False)
     subject_text.setEnabled(True)
     data_dir_text.setEnabled(True)
+    rate_text.setEnabled(True)
     start_available_timer.start(500)
     status_text.setText('Connected')
     recording_text.setText('')
@@ -180,10 +195,10 @@ app = QtGui.QApplication([])  # Start QT
 ## Create widgets.
 
 w = QtGui.QWidget()
-w.setWindowTitle('Photometry GUI')
+w.setWindowTitle('pyPhotometry GUI')
+
 status_label = QtGui.QLabel("Status:")
 status_text = QtGui.QLineEdit('Not connected')
-status_text.setFixedWidth(100)
 status_text.setStyleSheet('background-color:rgb(210, 210, 210);')
 status_text.setReadOnly(True)
 mode_label = QtGui.QLabel("Mode:")
@@ -192,14 +207,18 @@ mode_select.addItem('GCaMP/iso')
 mode_select.addItem('GCaMP/RFP')
 port_label = QtGui.QLabel("Serial port:")
 port_text = QtGui.QLineEdit(port)
-port_text.setFixedWidth(60)
+#port_text.setFixedWidth(80)
+rate_label = QtGui.QLabel('Sampling rate (Hz):')
+rate_text = QtGui.QLineEdit()
+rate_text.setFixedWidth(50)
 data_dir_label = QtGui.QLabel("Data dir:")
 data_dir_text = QtGui.QLineEdit(data_dir)
 data_dir_button = QtGui.QPushButton('...')
 data_dir_button.setFixedWidth(30)
 subject_label = QtGui.QLabel("Subject ID:")
 subject_text = QtGui.QLineEdit(subject_ID)
-subject_text.setFixedWidth(60)
+subject_text.setFixedWidth(80)
+subject_text.setMaxLength(12)
 connect_button = QtGui.QPushButton('Connect')
 start_button = QtGui.QPushButton('Start')
 record_button= QtGui.QPushButton('Record')
@@ -222,7 +241,7 @@ analog_axis.setXRange( -history_dur, history_dur*0.02, padding=0)
 
 recording_text = pg.TextItem(text='', color=(255,0,0))
 recording_text.setFont(QtGui.QFont('arial',16,QtGui.QFont.Bold))
-analog_axis.addItem(recording_text)
+analog_axis.addItem(recording_text, ignoreBounds=True)
 recording_text.setParentItem(analog_axis.getViewBox())
 recording_text.setPos(100,10)
 
@@ -246,6 +265,7 @@ ev_trig_axis.setXRange(trig_window_dur[0], trig_window_dur[1], padding=0)
 vertical_layout     = QtGui.QVBoxLayout()
 horizontal_layout_1 = QtGui.QHBoxLayout()
 horizontal_layout_2 = QtGui.QHBoxLayout()
+horizontal_layout_3 = QtGui.QHBoxLayout()
 
 horizontal_layout_1.addWidget(status_label)
 horizontal_layout_1.addWidget(status_text)
@@ -254,29 +274,35 @@ horizontal_layout_1.addWidget(mode_select)
 horizontal_layout_1.addWidget(port_label)
 horizontal_layout_1.addWidget(port_text)
 horizontal_layout_1.addWidget(connect_button)
-horizontal_layout_1.addWidget(data_dir_label)
-horizontal_layout_1.addWidget(data_dir_text)
-horizontal_layout_1.addWidget(data_dir_button)
-horizontal_layout_1.addWidget(subject_label)
-horizontal_layout_1.addWidget(subject_text)
-horizontal_layout_1.addWidget(start_button)
-horizontal_layout_1.addWidget(record_button)
-horizontal_layout_1.addWidget(stop_button)
-horizontal_layout_1.addWidget(quit_button)
+horizontal_layout_1.addWidget(rate_label)
+horizontal_layout_1.addWidget(rate_text)
+horizontal_layout_2.addWidget(data_dir_label)
+horizontal_layout_2.addWidget(data_dir_text)
+horizontal_layout_2.addWidget(data_dir_button)
+horizontal_layout_2.addWidget(subject_label)
+horizontal_layout_2.addWidget(subject_text)
+horizontal_layout_2.addWidget(start_button)
+horizontal_layout_2.addWidget(record_button)
+horizontal_layout_2.addWidget(stop_button)
+horizontal_layout_2.addWidget(quit_button)
 
-horizontal_layout_2.addWidget(sig_corr_axis, 40)
-horizontal_layout_2.addWidget(ev_trig_axis, 60)
+horizontal_layout_3.addWidget(sig_corr_axis, 40)
+horizontal_layout_3.addWidget(ev_trig_axis, 60)
 
 vertical_layout.addLayout(horizontal_layout_1)
+vertical_layout.addLayout(horizontal_layout_2)
 vertical_layout.addWidget(analog_axis,  50)
 vertical_layout.addWidget(digital_axis, 15)
-vertical_layout.addLayout(horizontal_layout_2, 30)
+vertical_layout.addLayout(horizontal_layout_3, 30)
 
 w.setLayout(vertical_layout)
 
-# Connect widgets
+# Connect buttons, boxes etc.
+
 mode_select.activated[str].connect(select_mode)
 port_text.textChanged.connect(port_text_change)
+port_text.returnPressed.connect(connect)
+rate_text.textChanged.connect(rate_text_change)
 data_dir_text.textChanged.connect(data_dir_text_change)
 subject_text.textChanged.connect(subject_text_change)
 connect_button.clicked.connect(connect)
@@ -285,12 +311,10 @@ start_button.clicked.connect(start)
 record_button.clicked.connect(record)
 stop_button.clicked.connect(stop)
 quit_button.clicked.connect(quit)
+rate_text.setEnabled(False)
 start_button.setEnabled(False)
 record_button.setEnabled(False)
 stop_button.setEnabled(False)
-
-
-
 
 # Setup Timers.
 

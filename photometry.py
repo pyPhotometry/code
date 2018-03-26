@@ -4,8 +4,8 @@ from array import array
 
 class Photometry():
 
-    def __init__(self, mode, buffer_size, sampling_rate, analog_in_1='X5', analog_in_2='X6', 
-                 digital_in_1='X1', digital_in_2='X2', digital_out_1='X12', digital_out_2='X11'):
+    def __init__(self, mode, analog_in_1='X5', analog_in_2='X6', digital_in_1='X1', 
+                 digital_in_2='X2', digital_out_1='X12', digital_out_2='X11'):
         assert mode in ['GCaMP/RFP', 'GCaMP/iso'], \
             "Invalid mode. Mode can be 'GCaMP/RFP' or 'GCaMP/iso'."
         self.mode = mode
@@ -13,8 +13,6 @@ class Photometry():
             self.oversampling_rate = 3e5 # Hz.
         elif mode == 'GCaMP/iso': # GCaMP and isosbestic recorded on same channel using time division multiplexing.
             self.oversampling_rate = 64e3   # Hz.
-        self.buffer_size = buffer_size
-        self.sampling_rate = sampling_rate
         self.ADC1 = pyb.ADC(analog_in_1)
         self.ADC2 = pyb.ADC(analog_in_2)
         self.DI1 = pyb.Pin(digital_in_1, pyb.Pin.IN, pyb.Pin.PULL_DOWN)
@@ -24,25 +22,33 @@ class Photometry():
         self.ovs_buffer = array('H',[0]*64) # Oversampling buffer
         self.ovs_timer = pyb.Timer(2)       # Oversampling timer.
         self.sampling_timer = pyb.Timer(3)
-        self.sample_buffers = (array('H',[0]*(buffer_size+2)), array('H',[0]*(buffer_size+2)))
-        self.buffer_data_mv = (memoryview(self.sample_buffers[0])[:-2], 
-                               memoryview(self.sample_buffers[1])[:-2])
         self.usb_serial = pyb.USB_VCP()
 
-    def start(self):
-        #Start acquisition.
+    def start(self, sampling_rate, buffer_size):
+        # Start acquisition, stream data to computer, wait for ctrl+c over serial to stop. 
+        # Setup sample buffers.
+        self.buffer_size = buffer_size
+        self.sample_buffers = (array('H',[0]*(buffer_size+2)), array('H',[0]*(buffer_size+2)))
+        self.buffer_data_mv = (memoryview(self.sample_buffers[0])[:-2], 
+                               memoryview(self.sample_buffers[1])[:-2])        
         self.write_buffer = 0 # Buffer to write data to.
         self.send_buffer  = 1 # Buffer to send data from.
         self.write_index  = 0 # Buffer index to write new data to. 
         self.buffer_ready = False # Set to True when full buffer is ready to send.
         self.ovs_timer.init(freq=self.oversampling_rate)
+        gc.disable()
         if self.mode == 'GCaMP/RFP':
-            self.sampling_timer.init(freq=self.sampling_rate)
+            self.sampling_timer.init(freq=sampling_rate)
             self.sampling_timer.callback(self.gcamp_rfp_ISR)
         elif self.mode == 'GCaMP/iso':
-            self.sampling_timer.init(freq=self.sampling_rate*2)
+            self.sampling_timer.init(freq=sampling_rate*2)
             self.sampling_timer.callback(self.gcamp_iso_ISR)
-        gc.disable()
+        try:
+            while True:
+                if self.buffer_ready:
+                    self._send_buffer()
+        except KeyboardInterrupt:
+            self.stop()
 
     def stop(self):
         # Stop aquisition
@@ -104,12 +110,3 @@ class Photometry():
         self.usb_serial.send(self.sample_buffers[self.send_buffer])
         self.buffer_ready = False
 
-    def run(self):
-        # Start acquisition, stream data to computer, wait for ctrl+c over serial to stop. 
-        self.start()
-        try:
-            while True:
-                if self.buffer_ready:
-                    self._send_buffer()
-        except KeyboardInterrupt:
-            self.stop()

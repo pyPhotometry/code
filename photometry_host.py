@@ -12,27 +12,28 @@ class Photometry_host(Pyboard):
         assert mode in ['GCaMP/RFP', 'GCaMP/iso'], \
             "Invalid mode, value values: 'GCaMP/RFP' or 'GCaMP/iso'."
         self.mode = mode
-        if mode == 'GCaMP/RFP': # 2 channel GFP/RFP acquisition mode.
-            self.sampling_rate = 1000 # Hz.
-            self.buffer_size   = 100
+        if mode == 'GCaMP/RFP':   # 2 channel GFP/RFP acquisition mode.
+            self.max_rate = 1000  # Maximum sampling rate allowed for this mode.
         elif mode == 'GCaMP/iso': # GCaMP and isosbestic using time division multiplexing.
-            self.sampling_rate = 160  # Hz.
-            self.buffer_size   = 16
-        assert self.buffer_size % 2 == 0, 'Buffer size must be an even number.'
-        self.chunk_n_bytes = (self.buffer_size+2)*2
+            self.max_rate = 160   # Hz.
+        self.set_sampling_rate(self.max_rate)
         self.data_file = None
-
         super().__init__(port, baudrate=115200)
         self.enter_raw_repl()
         self.exec('import photometry')
+        self.exec("p = photometry.Photometry(mode='{}')".format(self.mode))
 
-        self.exec("p = photometry.Photometry(mode='{}', buffer_size={}, sampling_rate={})"
-                  .format(self.mode, self.buffer_size, self.sampling_rate))
+    def set_sampling_rate(self, sampling_rate):
+        self.sampling_rate = int(min(sampling_rate, self.max_rate))
+        #self.buffer_size = max(2, int(np.ceil(self.sampling_rate / 40) * 2)) # Size of alternating signal buffers on pyboard.
+        self.buffer_size = max(2, int(self.sampling_rate // 40) * 2)
+        self.serial_chunk_size = (self.buffer_size+2)*2
+        return self.sampling_rate
 
     def start(self):
         '''Start data aquistion and streaming on the pyboard.'''
         self.serial.reset_input_buffer()
-        self.exec_raw_no_follow('p.run()')
+        self.exec_raw_no_follow('p.start({},{})'.format(self.sampling_rate, self.buffer_size))
 
     def record(self, file_path):
         self.data_file = open(file_path, 'wb')
@@ -47,12 +48,11 @@ class Photometry_host(Pyboard):
         if self.data_file:
             self.stop_recording()
 
-
     def process_data(self):
         '''Read a chunk of data from the serial line, extract signals and check end bytes.
         and check sum are correct.'''
-        if self.serial.inWaiting() > (self.chunk_n_bytes):
-            chunk = np.frombuffer(self.serial.read(self.chunk_n_bytes), dtype=np.uint16)
+        if self.serial.inWaiting() > (self.serial_chunk_size):
+            chunk = np.frombuffer(self.serial.read(self.serial_chunk_size), dtype=np.uint16)
             data = chunk[:-2]
             signal  = data & 0x7fff # Analog signal is least significant 15 bits.
             digital = data > 0x7fff # Digital signal is most significant bit.
