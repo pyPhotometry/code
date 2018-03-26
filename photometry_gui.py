@@ -4,7 +4,6 @@ from pyqtgraph.Qt import QtGui, QtCore
 import pyqtgraph as pg
 from serial import SerialException
 from sklearn.linear_model import LinearRegression
-from datetime import datetime
 from photometry_host import Photometry_host
 
 # Signal_history ------------------------------------------------------------
@@ -29,7 +28,7 @@ trig_window_dur = [-0.5,3] # Window duration for event triggered signals (second
 # Variables
 board = None
 mode  = 'GCaMP/iso'
-port  = 'com23'
+port  = 'com1'
 data_dir = 'select directory'
 subject_ID = 's001'
 running = False
@@ -154,9 +153,7 @@ def start():
 def record():
     global data_dir, subject_ID, board
     if os.path.isdir(data_dir):
-        file_path = os.path.join(data_dir, subject_ID + 
-                                 datetime.now().strftime('-%Y-%m-%d-%H%M%S') + '.ppd')
-        board.record(file_path)
+        board.record(data_dir, subject_ID)
         record_button.setEnabled(False)
         subject_text.setEnabled(False)
         data_dir_text.setEnabled(False)
