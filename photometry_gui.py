@@ -1,3 +1,5 @@
+# Code which runs on host computer and implements the graphical user interface.
+
 import numpy as np
 import os
 from pyqtgraph.Qt import QtGui, QtCore
@@ -91,7 +93,7 @@ def port_text_change(text):
 def data_dir_text_change(text):
     global data_dir
     data_dir = text
-    data_dir_text.setStyleSheet("color: rgb(0, 0, 0);")
+    data_dir_label.setStyleSheet('')
 
 def subject_text_change(text):
     global subject_ID
@@ -125,7 +127,7 @@ def select_data_dir():
     global data_dir
     data_dir = QtGui.QFileDialog.getExistingDirectory(w, 'Select data folder')
     data_dir_text.setText(data_dir)
-    data_dir_text.setStyleSheet("color: rgb(0, 0, 0);")
+    data_dir_label.setStyleSheet("color: rgb(0, 0, 0);")
 
 def start():
     global board, running, signal_1, signal_2, digital_1, digital_2, x, x_et, trig_window
@@ -154,14 +156,16 @@ def record():
     global data_dir, subject_ID, board
     if os.path.isdir(data_dir):
         board.record(data_dir, subject_ID)
+        status_text.setText('Recording')
+        recording_text.setText('Recording')
         record_button.setEnabled(False)
         subject_text.setEnabled(False)
         data_dir_text.setEnabled(False)
-        status_text.setText('Recording')
-        recording_text.setText('Recording  ')
+        data_dir_button.setEnabled(False)
+
     else:
-        data_dir_text.setText('Invalid directory')
-        data_dir_text.setStyleSheet("color: rgb(255, 0, 0);")
+        data_dir_text.setText('Set valid directory')
+        data_dir_label.setStyleSheet("color: rgb(255, 0, 0);")
 
 def stop():
     global board, running
@@ -171,6 +175,7 @@ def stop():
     stop_button.setEnabled(False)
     subject_text.setEnabled(True)
     data_dir_text.setEnabled(True)
+    data_dir_button.setEnabled(True)
     rate_text.setEnabled(True)
     start_available_timer.start(500)
     status_text.setText('Connected')

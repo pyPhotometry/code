@@ -1,3 +1,5 @@
+# Code which runs on host computer and implements communication with pyboard.
+
 import os
 import numpy as np
 import pylab as plt
