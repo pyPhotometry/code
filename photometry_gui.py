@@ -162,7 +162,6 @@ def record():
         subject_text.setEnabled(False)
         data_dir_text.setEnabled(False)
         data_dir_button.setEnabled(False)
-
     else:
         data_dir_text.setText('Set valid directory')
         data_dir_label.setStyleSheet("color: rgb(255, 0, 0);")
@@ -184,15 +183,15 @@ def stop():
 def start_available():
     start_button.setEnabled(True)
 
-def quit():
+def quit_func():
     global board, running
     if running: stop()
     if board: board.close()
-    QtCore.QCoreApplication.instance().quit()
 
 # Main  -----------------------------------------------------------
 
 app = QtGui.QApplication([])  # Start QT
+app.aboutToQuit.connect(quit_func)
 
 ## Create widgets.
 
@@ -225,7 +224,6 @@ connect_button = QtGui.QPushButton('Connect')
 start_button = QtGui.QPushButton('Start')
 record_button= QtGui.QPushButton('Record')
 stop_button = QtGui.QPushButton('Stop')
-quit_button = QtGui.QPushButton('Quit')     
 
 analog_axis  = pg.PlotWidget(title="Analog signal" , labels={'left':'Volts'})
 digital_axis = pg.PlotWidget(title="Digital signal", labels={'left': 'Level', 'bottom':'Time (seconds)'})
@@ -286,7 +284,6 @@ horizontal_layout_2.addWidget(subject_text)
 horizontal_layout_2.addWidget(start_button)
 horizontal_layout_2.addWidget(record_button)
 horizontal_layout_2.addWidget(stop_button)
-horizontal_layout_2.addWidget(quit_button)
 
 horizontal_layout_3.addWidget(sig_corr_axis, 40)
 horizontal_layout_3.addWidget(ev_trig_axis, 60)
@@ -312,7 +309,6 @@ data_dir_button.clicked.connect(select_data_dir)
 start_button.clicked.connect(start)
 record_button.clicked.connect(record)
 stop_button.clicked.connect(stop)
-quit_button.clicked.connect(quit)
 rate_text.setEnabled(False)
 start_button.setEnabled(False)
 record_button.setEnabled(False)

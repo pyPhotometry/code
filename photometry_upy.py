@@ -1,4 +1,4 @@
-# Code that runs on the micropython which handles data acquisition and streaming.
+# Code that runs on the pyboard which handles data acquisition and streaming.
 
 import pyb
 import gc
@@ -12,9 +12,9 @@ class Photometry():
             "Invalid mode. Mode can be 'GCaMP/RFP' or 'GCaMP/iso'."
         self.mode = mode
         if mode == 'GCaMP/RFP': # 2 channel GFP/RFP acquisition mode.
-            self.oversampling_rate = 3e5 # Hz.
+            self.oversampling_rate = 3e5  # Hz.
         elif mode == 'GCaMP/iso': # GCaMP and isosbestic recorded on same channel using time division multiplexing.
-            self.oversampling_rate = 64e3   # Hz.
+            self.oversampling_rate = 64e3 # Hz.
         self.ADC1 = pyb.ADC(analog_in_1)
         self.ADC2 = pyb.ADC(analog_in_2)
         self.DI1 = pyb.Pin(digital_in_1, pyb.Pin.IN, pyb.Pin.PULL_DOWN)

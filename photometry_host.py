@@ -2,10 +2,8 @@
 
 import os
 import numpy as np
-import pylab as plt
-from serial import SerialException
 from datetime import datetime
-from pyboard import Pyboard, PyboardError
+from pyboard import Pyboard
 
 class Photometry_host(Pyboard):
     '''Class for aquiring data from a micropython photometry system on a host computer.'''
