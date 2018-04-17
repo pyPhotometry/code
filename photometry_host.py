@@ -8,9 +8,16 @@ from pyboard import Pyboard
 class Photometry_host(Pyboard):
     '''Class for aquiring data from a micropython photometry system on a host computer.'''
 
-    def __init__(self, port, pins, mode='GCaMP/iso'):
+    def __init__(self, port, pins):
         '''Open connection to pyboard and instantiate Photometry class on pyboard with
         provided parameters.'''
+        self.pins = pins
+        self.data_file = None
+        self.volts_per_division = [3.3/(1<<15), 3.3/(1<<15)] # For signal [1,2]
+        super().__init__(port, baudrate=115200)
+ 
+    def set_mode(self, mode):
+        # Set control channel mode.
         assert mode in ['GCaMP/RFP', 'GCaMP/iso'], \
             "Invalid mode, value values: 'GCaMP/RFP' or 'GCaMP/iso'."
         self.mode = mode
@@ -19,12 +26,10 @@ class Photometry_host(Pyboard):
         elif mode == 'GCaMP/iso': # GCaMP and isosbestic using time division multiplexing.
             self.max_rate = 160   # Hz.
         self.set_sampling_rate(self.max_rate)
-        self.data_file = None
-        self.volts_per_division = [3.3/(1<<15), 3.3/(1<<15)] # For signal [1,2]
-        super().__init__(port, baudrate=115200)
-        self.enter_raw_repl()
-        self.exec('import photometry_upy')
-        self.exec("p = photometry_upy.Photometry(mode='{}', pins={})".format(self.mode, pins))
+        self.enter_raw_repl() # Reset pyboard.
+        self.exec('import photometry_upy') 
+        self.exec("p = photometry_upy.Photometry(mode='{}', pins={})"
+                   .format(self.mode, self.pins))        
 
     def set_sampling_rate(self, sampling_rate):
         self.sampling_rate = int(min(sampling_rate, self.max_rate))
@@ -72,17 +77,17 @@ class Photometry_host(Pyboard):
             signal  = data >> 1        # Analog signal is most significant 15 bits.
             digital = (data % 2) == 1  # Digital signal is least significant bit.
             # Alternating samples are signals 1 and 2.
-            signal_1 = signal[ ::2]
-            signal_2 = signal[1::2]
-            digital_1 = digital[ ::2]
-            digital_2 = digital[1::2]
+            ADC1 = signal[ ::2]
+            ADC2 = signal[1::2]
+            DI1 = digital[ ::2]
+            DI2 = digital[1::2]
             if not chunk[-1] == 0: print('Bad end bytes')
             if not (sum(data) & 0xffff) == chunk[-2]: 
                 print('Bad checksum')
                 self.serial.reset_input_buffer()
             if self.data_file:
                 self.data_file.write(data.tobytes())
-            return signal_1, signal_2, digital_1, digital_2
+            return ADC1, ADC2, DI1, DI2
 
 
 # Import data -----------------------------------------------------------------------------
@@ -102,20 +107,20 @@ def import_data(file_path):
     signal  = data >> 1       # Analog signal is most significant 15 bits.
     digital = (data % 2) == 1 # Digital signal is least significant bit.
     # Alternating samples are signals 1 and 2.
-    signal_1 = signal[ ::2] * volts_per_division[0]
-    signal_2 = signal[1::2] * volts_per_division[1]
-    digital_1 = digital[ ::2]
-    digital_2 = digital[1::2]    
+    ADC1 = signal[ ::2] * volts_per_division[0]
+    ADC2 = signal[1::2] * volts_per_division[1]
+    DI1 = digital[ ::2]
+    DI2 = digital[1::2]    
     return {'subject_ID'   : subject_ID,
             'datetime'     : date_time,
             'datetime_str' : date_time.strftime('%Y-%m-%d %H:%M:%S'),
             'mode'         : mode,
             'sampling_rate': sampling_rate,
             'volts_per_div': volts_per_division,
-            'signal_1'     : signal_1,
-            'signal_2'     : signal_2,
-            'digital_1'    : digital_1,
-            'digital_2'    : digital_2}
+            'ADC1'     : ADC1,
+            'ADC2'     : ADC2,
+            'DI1'    : DI1,
+            'DI2'    : DI2}
 
 
 

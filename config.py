@@ -11,3 +11,8 @@ pins = {'ADC1'   : 'X5' ,  # GCaMP
         'DI2'    : 'X2',  # Sync
         'LED1'   : 'X11' ,  # 475nm LED
         'LED2'   : 'X12' }  # 405nm LED
+
+history_dur   = 10     # Duration of plotted signal history (seconds)
+triggered_dur = [-3,6] # Window duration for event triggered signals (seconds pre, post)
+
+update_interval = 20 # Interval between calls to update function (ms).
