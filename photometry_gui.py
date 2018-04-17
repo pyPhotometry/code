@@ -6,7 +6,10 @@ from pyqtgraph.Qt import QtGui, QtCore
 import pyqtgraph as pg
 from serial import SerialException
 from sklearn.linear_model import LinearRegression
+from serial.tools import list_ports
+
 from photometry_host import Photometry_host
+from config import pins
 
 # Signal_history ------------------------------------------------------------
 
@@ -29,9 +32,9 @@ trig_window_dur = [-0.5,3] # Window duration for event triggered signals (second
 
 # Variables
 board = None
-mode  = 'GCaMP/iso'
+mode  = 'GCaMP/RFP'
 port  = 'com1'
-data_dir = 'select directory'
+data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 subject_ID = 's001'
 running = False
 OLS = LinearRegression()
@@ -86,10 +89,6 @@ def select_mode(selected_mode):
     global mode
     mode = selected_mode
 
-def port_text_change(text):
-    global port
-    port = text
-
 def data_dir_text_change(text):
     global data_dir
     data_dir = text
@@ -110,13 +109,13 @@ def rate_text_change(text):
         rate_text.setText(str(set_rate))
 
 def connect():
-    global port, board
+    global board
     try:
-        board = Photometry_host(port, mode=mode)
+        board = Photometry_host(port_select.currentText(), pins, mode=mode)
         start_button.setEnabled(True)
         connect_button.setEnabled(False)
         mode_select.setEnabled(False)
-        port_text.setEnabled(False)
+        port_select.setEnabled(False)
         rate_text.setEnabled(True)
         status_text.setText('Connected')
         rate_text.setText(str(board.sampling_rate))
@@ -204,11 +203,15 @@ status_text.setStyleSheet('background-color:rgb(210, 210, 210);')
 status_text.setReadOnly(True)
 mode_label = QtGui.QLabel("Mode:")
 mode_select = QtGui.QComboBox()
-mode_select.addItem('GCaMP/iso')
 mode_select.addItem('GCaMP/RFP')
+mode_select.addItem('GCaMP/iso')
 port_label = QtGui.QLabel("Serial port:")
-port_text = QtGui.QLineEdit(port)
-#port_text.setFixedWidth(80)
+
+ports = set([c[0] for c in list_ports.comports()
+                     if ('Pyboard' in c[1]) or ('USB Serial Device' in c[1])])
+port_select = QtGui.QComboBox()
+port_select.addItems(ports)
+
 rate_label = QtGui.QLabel('Sampling rate (Hz):')
 rate_text = QtGui.QLineEdit()
 rate_text.setFixedWidth(50)
@@ -229,6 +232,8 @@ analog_axis  = pg.PlotWidget(title="Analog signal" , labels={'left':'Volts'})
 digital_axis = pg.PlotWidget(title="Digital signal", labels={'left': 'Level', 'bottom':'Time (seconds)'})
 sig_corr_axis  = pg.PlotWidget(title="Signal correlation" , labels={'left':'GCaMP', 'bottom':'control'})
 ev_trig_axis = pg.PlotWidget(title="Event triggered", labels={'left': 'Volts', 'bottom':'Time (seconds)'})
+
+
 
 # Setup Axis.
 
@@ -272,7 +277,7 @@ horizontal_layout_1.addWidget(status_text)
 horizontal_layout_1.addWidget(mode_label)
 horizontal_layout_1.addWidget(mode_select)
 horizontal_layout_1.addWidget(port_label)
-horizontal_layout_1.addWidget(port_text)
+horizontal_layout_1.addWidget(port_select)
 horizontal_layout_1.addWidget(connect_button)
 horizontal_layout_1.addWidget(rate_label)
 horizontal_layout_1.addWidget(rate_text)
@@ -299,8 +304,6 @@ w.setLayout(vertical_layout)
 # Connect buttons, boxes etc.
 
 mode_select.activated[str].connect(select_mode)
-port_text.textChanged.connect(port_text_change)
-port_text.returnPressed.connect(connect)
 rate_text.textChanged.connect(rate_text_change)
 data_dir_text.textChanged.connect(data_dir_text_change)
 subject_text.textChanged.connect(subject_text_change)

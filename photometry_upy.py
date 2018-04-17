@@ -6,8 +6,7 @@ from array import array
 
 class Photometry():
 
-    def __init__(self, mode, analog_in_1='X5', analog_in_2='X6', digital_in_1='X1', 
-                 digital_in_2='X2', digital_out_1='X12', digital_out_2='X11'):
+    def __init__(self, mode, pins):
         assert mode in ['GCaMP/RFP', 'GCaMP/iso'], \
             "Invalid mode. Mode can be 'GCaMP/RFP' or 'GCaMP/iso'."
         self.mode = mode
@@ -15,12 +14,12 @@ class Photometry():
             self.oversampling_rate = 3e5  # Hz.
         elif mode == 'GCaMP/iso': # GCaMP and isosbestic recorded on same channel using time division multiplexing.
             self.oversampling_rate = 64e3 # Hz.
-        self.ADC1 = pyb.ADC(analog_in_1)
-        self.ADC2 = pyb.ADC(analog_in_2)
-        self.DI1 = pyb.Pin(digital_in_1, pyb.Pin.IN, pyb.Pin.PULL_DOWN)
-        self.DI2 = pyb.Pin(digital_in_2, pyb.Pin.IN, pyb.Pin.PULL_DOWN)
-        self.DO1 = pyb.Pin(digital_out_1, pyb.Pin.OUT, value=False)
-        self.DO2 = pyb.Pin(digital_out_2, pyb.Pin.OUT, value=False)
+        self.ADC1 = pyb.ADC(pins['ADC1'])
+        self.ADC2 = pyb.ADC(pins['ADC2'])
+        self.DI1 = pyb.Pin(pins['DI1'], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+        self.DI2 = pyb.Pin(pins['DI2'], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+        self.LED1 = pyb.Pin(pins['LED1'], pyb.Pin.OUT, value=False)
+        self.LED2 = pyb.Pin(pins['LED2'], pyb.Pin.OUT, value=False)
         self.ovs_buffer = array('H',[0]*64) # Oversampling buffer
         self.ovs_timer = pyb.Timer(2)       # Oversampling timer.
         self.sampling_timer = pyb.Timer(3)
@@ -83,18 +82,18 @@ class Photometry():
     def gcamp_iso_ISR(self, t):
         # Interrupt service routine for 2 channel GCamp / isosbestic acquisition mode.
         if self.write_ind % 2:   # Odd samples are isosbestic illumination.
-            self.DO2.value(True) # Turn on 405nm illumination.
+            self.LED2.value(True) # Turn on 405nm illumination.
         else:                    # Even samples are blue illumination.
-            self.DO1.value(True) # Turn on 470nm illumination.
+            self.LED1.value(True) # Turn on 470nm illumination.
         pyb.udelay(350)          # Wait before reading ADC (us).
         # Acquire sample and store in buffer.
         self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
         self.sample = sum(self.ovs_buffer) >> 3
         if self.write_ind % 2:
-            self.DO2.value(False) # Turn off 405nm illumination.
+            self.LED2.value(False) # Turn off 405nm illumination.
             self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.DI2.value()
         else:
-            self.DO1.value(False) # Turn on 470nm illumination.
+            self.LED1.value(False) # Turn on 470nm illumination.
             self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.DI1.value()
         # Update write index and switch buffers if full.
         self.write_ind = (self.write_ind + 1) % self.buffer_size

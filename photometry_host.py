@@ -8,7 +8,7 @@ from pyboard import Pyboard
 class Photometry_host(Pyboard):
     '''Class for aquiring data from a micropython photometry system on a host computer.'''
 
-    def __init__(self, port, mode='GCaMP/iso'):
+    def __init__(self, port, pins, mode='GCaMP/iso'):
         '''Open connection to pyboard and instantiate Photometry class on pyboard with
         provided parameters.'''
         assert mode in ['GCaMP/RFP', 'GCaMP/iso'], \
@@ -24,7 +24,7 @@ class Photometry_host(Pyboard):
         super().__init__(port, baudrate=115200)
         self.enter_raw_repl()
         self.exec('import photometry_upy')
-        self.exec("p = photometry_upy.Photometry(mode='{}')".format(self.mode))
+        self.exec("p = photometry_upy.Photometry(mode='{}', pins={})".format(self.mode, pins))
 
     def set_sampling_rate(self, sampling_rate):
         self.sampling_rate = int(min(sampling_rate, self.max_rate))
