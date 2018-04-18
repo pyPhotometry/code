@@ -64,14 +64,14 @@ class Photometry_host(Pyboard):
         self.data_file = None
 
     def stop(self):
-        self.serial.write(b'\r\x03\x03') # ctrl+c twice.
         if self.data_file:
             self.stop_recording()
+        self.serial.write(b'\r\x03\x03') # ctrl+c twice.
 
     def process_data(self):
         '''Read a chunk of data from the serial line, extract signals and check end bytes.
         and check sum are correct.'''
-        if self.serial.inWaiting() > (self.serial_chunk_size):
+        if self.serial.in_waiting > (self.serial_chunk_size):
             chunk = np.frombuffer(self.serial.read(self.serial_chunk_size), dtype=np.dtype('<u2'))
             data = chunk[:-2]
             signal  = data >> 1        # Analog signal is most significant 15 bits.
@@ -81,7 +81,8 @@ class Photometry_host(Pyboard):
             ADC2 = signal[1::2]
             DI1 = digital[ ::2]
             DI2 = digital[1::2]
-            if not chunk[-1] == 0: print('Bad end bytes')
+            if not chunk[-1] == 0:
+                print('Bad end bytes')
             if not (sum(data) & 0xffff) == chunk[-2]: 
                 print('Bad checksum')
                 self.serial.reset_input_buffer()
