@@ -7,13 +7,14 @@ from array import array
 class Photometry():
 
     def __init__(self, mode, pins):
-        assert mode in ['GCaMP/RFP', 'GCaMP/iso'], \
-            "Invalid mode. Mode can be 'GCaMP/RFP' or 'GCaMP/iso'."
+        assert mode in ['GCaMP/RFP', 'GCaMP/iso', 'GCaMP/RFP_dif'], 'Invalid mode.'
         self.mode = mode
         if mode == 'GCaMP/RFP': # 2 channel GFP/RFP acquisition mode.
             self.oversampling_rate = 3e5  # Hz.
         elif mode == 'GCaMP/iso': # GCaMP and isosbestic recorded on same channel using time division multiplexing.
             self.oversampling_rate = 64e3 # Hz.
+        elif mode == 'GCaMP/RFP_dif': # GCaMP and RFP recorded using time division illumination and baseline subtraction..
+            self.oversampling_rate = 128e3 # Hz.
         self.ADC1 = pyb.ADC(pins['ADC1'])
         self.ADC2 = pyb.ADC(pins['ADC2'])
         self.DI1 = pyb.Pin(pins['DI1'], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
@@ -32,7 +33,9 @@ class Photometry():
         self.sample_buffers = (array('H',[0]*(buffer_size+2)), array('H',[0]*(buffer_size+2)))
         self.buffer_data_mv = (memoryview(self.sample_buffers[0])[:-2], 
                                memoryview(self.sample_buffers[1])[:-2])      
-        self.sample = 0  
+        self.sample = 0
+        self.baseline = 0
+        self.dig_sample = False
         self.write_buf = 0 # Buffer to write data to.
         self.send_buf  = 1 # Buffer to send data from.
         self.write_ind = 0 # Buffer index to write new data to. 
@@ -45,6 +48,9 @@ class Photometry():
         elif self.mode == 'GCaMP/iso':
             self.sampling_timer.init(freq=sampling_rate*2)
             self.sampling_timer.callback(self.gcamp_iso_ISR)
+        elif self.mode == 'GCaMP/RFP_dif':
+            self.sampling_timer.init(freq=sampling_rate*2)
+            self.sampling_timer.callback(self.gcamp_rfp_diff_ISR)
         try:
             while True:
                 if self.buffer_ready:
@@ -80,7 +86,7 @@ class Photometry():
 
     @micropython.native
     def gcamp_iso_ISR(self, t):
-        # Interrupt service routine for 2 channel GCamp / isosbestic acquisition mode.
+        # Interrupt service routine for 2 channel GCamp / isosbestic acquisition mode. 
         if self.write_ind % 2:   # Odd samples are isosbestic illumination.
             self.LED2.value(True) # Turn on 405nm illumination.
         else:                    # Even samples are blue illumination.
@@ -95,6 +101,37 @@ class Photometry():
         else:
             self.LED1.value(False) # Turn on 470nm illumination.
             self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.DI1.value()
+        # Update write index and switch buffers if full.
+        self.write_ind = (self.write_ind + 1) % self.buffer_size
+        if self.write_ind == 0: # Buffer full, switch buffers.
+            self.write_buf = 1 - self.write_buf
+            self.send_buf  = 1 - self.send_buf
+            self.buffer_ready = True
+
+    @micropython.native
+    def gcamp_rfp_diff_ISR(self, t):
+        # Interrupt service routine for 2 channel GCamp / RFP with baseline subtraction acquisition mode.
+  
+        if self.write_ind % 2:   # Odd samples are RFP illumination.
+            self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
+            self.LED2.value(True) # Turn on 560nm illumination.
+        else:                    # Even samples are blue illumination.
+            self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
+            self.LED1.value(True) # Turn on 470nm illumination.
+        self.baseline = sum(self.ovs_buffer) >> 3            
+        pyb.udelay(350) # Wait before reading ADC (us).
+        # Acquire sample, subtract baseline, store in buffer. 
+        if self.write_ind % 2:
+            self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
+            self.dig_sample = self.DI2.value()
+            self.LED2.value(False) # Turn off 405nm illumination.
+        else:
+            self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
+            self.dig_sample =self.DI1.value()
+            self.LED1.value(False) # Turn on 470nm illumination.
+        self.sample = sum(self.ovs_buffer) >> 3
+        self.sample = max(self.sample - self.baseline, 0)
+        self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.dig_sample
         # Update write index and switch buffers if full.
         self.write_ind = (self.write_ind + 1) % self.buffer_size
         if self.write_ind == 0: # Buffer full, switch buffers.

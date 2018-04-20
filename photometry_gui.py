@@ -63,7 +63,7 @@ class Photometry_GUI(QtGui.QWidget):
 
         self.mode_label = QtGui.QLabel("Mode:")
         self.mode_select = QtGui.QComboBox()
-        self.mode_select.addItems(['GCaMP/RFP', 'GCaMP/iso'])
+        self.mode_select.addItems(['GCaMP/RFP', 'GCaMP/iso', 'GCaMP/RFP_dif'])
         self.rate_label = QtGui.QLabel('Sampling rate (Hz):')
         self.rate_text = QtGui.QLineEdit()
 

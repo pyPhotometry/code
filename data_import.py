@@ -2,8 +2,9 @@
 
 from datetime import datetime
 import numpy as np
+from scipy.signal import butter, filtfilt
 
-def import_data(file_path):
+def import_data(file_path, filt_freq=20):
     with open(file_path, 'rb') as f:
         header_size = int.from_bytes(f.read(2), 'little')
         data_header = f.read(header_size)
@@ -21,14 +22,23 @@ def import_data(file_path):
     ADC1 = signal[ ::2] * volts_per_division[0]
     ADC2 = signal[1::2] * volts_per_division[1]
     DI1 = digital[ ::2]
-    DI2 = digital[1::2]    
+    DI2 = digital[1::2]
+    t = np.arange(ADC1.shape[0]) / sampling_rate # Time relative to start of recording (seconds).
+    # Filter signals.
+    b, a = butter(2, filt_freq/(0.5*sampling_rate), 'low')
+    ADC1_filt = filtfilt(b, a, ADC1)
+    ADC2_filt = filtfilt(b, a, ADC2)
+
     return {'subject_ID'   : subject_ID,
             'datetime'     : date_time,
             'datetime_str' : date_time.strftime('%Y-%m-%d %H:%M:%S'),
             'mode'         : mode,
             'sampling_rate': sampling_rate,
             'volts_per_div': volts_per_division,
-            'ADC1'     : ADC1,
-            'ADC2'     : ADC2,
-            'DI1'    : DI1,
-            'DI2'    : DI2}
+            'ADC1'         : ADC1,
+            'ADC2'         : ADC2,
+            'ADC1_filt'    : ADC1_filt,
+            'ADC2_filt'    : ADC2_filt,
+            'DI1'          : DI1,
+            'DI2'          : DI2,
+            't'            : t}

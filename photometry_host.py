@@ -17,12 +17,12 @@ class Photometry_host(Pyboard):
  
     def set_mode(self, mode):
         # Set control channel mode.
-        assert mode in ['GCaMP/RFP', 'GCaMP/iso'], \
-            "Invalid mode, value values: 'GCaMP/RFP' or 'GCaMP/iso'."
+        assert mode in ['GCaMP/RFP', 'GCaMP/iso', 'GCaMP/RFP_dif'], \
+            "Invalid mode, value values: 'GCaMP/RFP', 'GCaMP/iso' or 'GCaMP/RFP_dif'."
         self.mode = mode
         if mode == 'GCaMP/RFP':   # 2 channel GFP/RFP acquisition mode.
             self.max_rate = 1000  # Maximum sampling rate allowed for this mode.
-        elif mode == 'GCaMP/iso': # GCaMP and isosbestic using time division multiplexing.
+        elif mode in ('GCaMP/iso', 'GCaMP/RFP_dif'): # GCaMP and isosbestic using time division multiplexing.
             self.max_rate = 160   # Hz.
         self.set_sampling_rate(self.max_rate)
         self.enter_raw_repl() # Reset pyboard.
