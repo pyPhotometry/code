@@ -111,7 +111,6 @@ class Photometry():
     @micropython.native
     def gcamp_rfp_diff_ISR(self, t):
         # Interrupt service routine for 2 channel GCamp / RFP with baseline subtraction acquisition mode.
-  
         if self.write_ind % 2:   # Odd samples are RFP illumination.
             self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
             self.LED2.value(True) # Turn on 560nm illumination.
@@ -143,7 +142,10 @@ class Photometry():
     def _send_buffer(self):
         # Send full buffer to host computer. Format of the serial chunks sent to the computer: 
         # buffer[:-2] = data, buffer[-2] = checksum, buffer[-1] = 0.
+        if self.usb_serial.any() and self.usb_serial.read(1) == b'\x03':
+                self.stop()
         self.sample_buffers[self.send_buf][-2] = sum(self.buffer_data_mv[self.send_buf]) # Checksum
         self.usb_serial.send(self.sample_buffers[self.send_buf])
         self.buffer_ready = False
+
 

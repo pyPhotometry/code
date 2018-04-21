@@ -1,5 +1,6 @@
 import numpy as np
 import pyqtgraph as pg
+from datetime import timedelta, datetime
 from pyqtgraph.Qt import QtGui, QtCore
 from sklearn.linear_model import LinearRegression
 
@@ -18,7 +19,7 @@ class Analog_plot():
         self.axis.setXRange( -history_dur, history_dur*0.02, padding=0)
 
         self.recording = pg.TextItem(text='', color=(255,0,0))
-        self.recording.setFont(QtGui.QFont('arial',16,QtGui.QFont.Bold))
+        self.recording.setFont(QtGui.QFont('arial',12,QtGui.QFont.Bold))
         self.axis.addItem(self.recording, ignoreBounds=True)
         self.recording.setParentItem(self.axis.getViewBox())
         self.recording.setPos(100,10)
@@ -132,3 +133,27 @@ class Signal_history():
         data_len = len(new_data)
         self.history = np.roll(self.history, -data_len)
         self.history[-data_len:] = new_data
+
+# Record_clock ----------------------------------------------------
+
+class Record_clock():
+    # Class for displaying the run time.
+
+    def __init__(self, axis):
+        self.text = pg.TextItem(text='')
+        self.text.setFont(QtGui.QFont('arial',12, QtGui.QFont.Bold))
+        axis.getViewBox().addItem(self.text, ignoreBounds=True)
+        self.text.setParentItem(axis.getViewBox())
+        self.text.setPos(190,10)
+        self.start_time = None
+
+    def start(self):
+        self.start_time = datetime.now()
+
+    def update(self):
+        if self.start_time:
+            self.text.setText(str(datetime.now()-self.start_time)[:7])
+
+    def stop(self):
+        self.text.setText('')
+        self.start_time = None

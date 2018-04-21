@@ -50,7 +50,7 @@ class Photometry_host(Pyboard):
         data_header = bytearray([0]*42)
         data_header[ 0:12] = subject_ID.ljust(12).encode()
         data_header[12:31] = date_time.isoformat(timespec='seconds').encode() # ISO 8601 format data time string
-        data_header[31   ] = {'GCaMP/RFP':1, 'GCaMP/iso':2}[self.mode]
+        data_header[31   ] = {'GCaMP/RFP':1,'GCaMP/iso':2,'GCaMP/RFP_dif':3}[self.mode]
         data_header[32:34] = self.sampling_rate.to_bytes(2, 'little')
         data_header[34:38] = int(self.volts_per_division[0]*1e9).to_bytes(4, 'little')
         data_header[38:42] = int(self.volts_per_division[1]*1e9).to_bytes(4, 'little')
@@ -65,7 +65,7 @@ class Photometry_host(Pyboard):
     def stop(self):
         if self.data_file:
             self.stop_recording()
-        self.serial.write(b'\r\x03\x03') # ctrl+c twice.
+        self.serial.write(b'\x03') # Stop signal
 
     def process_data(self):
         '''Read a chunk of data from the serial line, extract signals and check end bytes.

@@ -7,7 +7,7 @@ from serial.tools import list_ports
 
 from photometry_host import Photometry_host
 from config import pins, update_interval
-from plotting import Analog_plot, Digital_plot, Correlation_plot, Event_triggered_plot
+from plotting import Analog_plot, Digital_plot, Correlation_plot, Event_triggered_plot, Record_clock
 
 class Photometry_GUI(QtGui.QWidget):
 
@@ -126,6 +126,8 @@ class Photometry_GUI(QtGui.QWidget):
         self.digital_plot = Digital_plot()
         #self.correlation_plot = Correlation_plot()
         self.event_triggered_plot = Event_triggered_plot()
+
+        self.record_clock = Record_clock(self.analog_plot.axis)
 
         # Main layout
 
@@ -248,6 +250,7 @@ class Photometry_GUI(QtGui.QWidget):
             self.subject_text.setEnabled(False)
             self.data_dir_text.setEnabled(False)
             self.data_dir_button.setEnabled(False)
+            self.record_clock.start()
         else:
             self.data_dir_text.setText('Set valid directory')
             self.data_dir_label.setStyleSheet("color: rgb(255, 0, 0);")
@@ -258,9 +261,6 @@ class Photometry_GUI(QtGui.QWidget):
         self.refresh_timer.start(self.refresh_interval)
         self.running = False
         self.stop_button.setEnabled(False)
-        QtCore.QTimer.singleShot(500, self.post_stop)
-
-    def post_stop(self):
         self.board.serial.reset_input_buffer()
         self.board_groupbox.setEnabled(True)
         self.acquisition_groupbox.setEnabled(True)
@@ -271,7 +271,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.data_dir_button.setEnabled(True)
         self.status_text.setText('Connected')
         self.analog_plot.recording.setText('')
-
+        self.record_clock.stop()
 
     # Timer callbacks.
 
@@ -287,7 +287,7 @@ class Photometry_GUI(QtGui.QWidget):
                 self.digital_plot.update(new_DI1, new_DI2)
                 #self.correlation_plot.update(self.analog_plot)
                 self.event_triggered_plot.update(new_DI1, self.digital_plot, self.analog_plot)
-
+                self.record_clock.update()
 
     def refresh(self):
         # Called regularly while not running, scan serial ports for 

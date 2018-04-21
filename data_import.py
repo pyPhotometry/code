@@ -12,7 +12,7 @@ def import_data(file_path, filt_freq=20):
     # Extract header information
     subject_ID = data_header[:12].decode().strip()
     date_time = datetime.strptime(data_header[12:31].decode(), '%Y-%m-%dT%H:%M:%S')
-    mode = {1: 'GCaMP/RFP', 2:'GCaMP/iso'}[data_header[31]]
+    mode = {1:'GCaMP/RFP',2:'GCaMP/iso',3:'GCaMP/RFP_dif'}[data_header[31]]
     sampling_rate = int.from_bytes(data_header[32:34], 'little')
     volts_per_division = np.frombuffer(data_header[34:42], dtype='<u4')*1e-9
     # Extract signals.
