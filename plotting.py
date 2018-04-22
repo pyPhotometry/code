@@ -2,7 +2,6 @@ import numpy as np
 import pyqtgraph as pg
 from datetime import timedelta, datetime
 from pyqtgraph.Qt import QtGui, QtCore
-from sklearn.linear_model import LinearRegression
 
 from config import history_dur, triggered_dur
 
@@ -17,12 +16,6 @@ class Analog_plot():
         self.plot_2  = self.axis.plot(pen=pg.mkPen('r'), name='control')
         self.axis.setYRange(0, 3.3, padding=0)
         self.axis.setXRange( -history_dur, history_dur*0.02, padding=0)
-
-        self.recording = pg.TextItem(text='', color=(255,0,0))
-        self.recording.setFont(QtGui.QFont('arial',12,QtGui.QFont.Bold))
-        self.axis.addItem(self.recording, ignoreBounds=True)
-        self.recording.setParentItem(self.axis.getViewBox())
-        self.recording.setPos(100,10)
 
     def reset(self, sampling_rate):
         history_length = int(sampling_rate*history_dur)
@@ -70,21 +63,31 @@ class Correlation_plot():
         self.axis  = pg.PlotWidget(title="Signal correlation" , labels={'left':'GCaMP', 'bottom':'control'})
         self.corr_plot = self.axis.plot(pen=pg.mkPen(pg.hsvColor(0.5, alpha=0.1)))
         self.reg_fit_plot = self.axis.plot(pen=pg.mkPen(style=QtCore.Qt.DashLine))
-        self.OLS = LinearRegression()
+        self.slope_text = pg.TextItem(text='')
+        self.slope_text.setFont(QtGui.QFont('arial',10, QtGui.QFont.Bold))
+        self.axis.getViewBox().addItem(self.slope_text, ignoreBounds=True)
+        self.slope_text.setParentItem(self.axis.getViewBox())
+        self.slope_text.setPos(10,10)
 
     def reset(self, sampling_rate):
         history_length = int(sampling_rate*history_dur)
         self.DI1 = Signal_history(history_length, int) 
         self.DI2 = Signal_history(history_length, int)
+        self.ones = np.ones(history_length, int)
         self.x = np.linspace(-history_dur, 0, history_length) # X axis for timeseries plots.
+        self.last_slope_update = datetime.now()
+        self.slope_text.setText('')
 
     def update(self, analog):
         self.corr_plot.setData(analog.ADC2.history, analog.ADC1.history)
-        self.OLS.fit(analog.ADC2.history[:,None], analog.ADC1.history[:,None])
-        x_c = np.array([np.min(analog.ADC2.history), np.max(analog.ADC2.history)])
-        y_c = self.OLS.predict(x_c[:,None]).flatten()
-        self.reg_fit_plot.setData(x_c, y_c)
-        self.axis.setTitle('Signal correlation, slope = {:.3f}'.format(self.OLS.coef_[0][0]))
+        if datetime.now() - self.last_slope_update > timedelta(seconds=1):
+            self.last_slope_update = datetime.now()
+            x = np.vstack([analog.ADC2.history, self.ones]).T
+            a, b = np.linalg.lstsq(x, analog.ADC1.history, rcond=None)[0]
+            x_c = np.array([np.min(analog.ADC2.history), np.max(analog.ADC2.history)])
+            y_c = b + a*x_c
+            self.reg_fit_plot.setData(x_c, y_c)
+            self.slope_text.setText('Slope: {:.2f}'.format(a))
  
 # Event triggered plot -------------------------------------------------
 
@@ -103,6 +106,8 @@ class Event_triggered_plot():
         self.window = (np.array(triggered_dur)*sampling_rate).astype(int)   # Window for event triggered signals (samples [pre, post])
         self.x = np.linspace(*triggered_dur, self.window[1]-self.window[0]) # X axis for event triggered plots.
         self.average = None
+        self.prev_plot.clear()
+        self.ave_plot.clear()
 
     def update(self, new_DI1, digital, analog):
         # Update event triggered average plot.
@@ -140,20 +145,33 @@ class Record_clock():
     # Class for displaying the run time.
 
     def __init__(self, axis):
-        self.text = pg.TextItem(text='')
-        self.text.setFont(QtGui.QFont('arial',12, QtGui.QFont.Bold))
-        axis.getViewBox().addItem(self.text, ignoreBounds=True)
-        self.text.setParentItem(axis.getViewBox())
-        self.text.setPos(190,10)
+        self.clock_text = pg.TextItem(text='')
+        self.clock_text.setFont(QtGui.QFont('arial',12, QtGui.QFont.Bold))
+        axis.getViewBox().addItem(self.clock_text, ignoreBounds=True)
+        self.clock_text.setParentItem(axis.getViewBox())
+        self.clock_text.setPos(190,10)
+        self.recording_text = pg.TextItem(text='', color=(255,0,0))
+        self.recording_text.setFont(QtGui.QFont('arial',12,QtGui.QFont.Bold))
+        axis.getViewBox().addItem(self.recording_text, ignoreBounds=True)
+        self.recording_text.setParentItem(axis.getViewBox())
+        self.recording_text.setPos(100,10)
         self.start_time = None
 
     def start(self):
         self.start_time = datetime.now()
+        self.recording_text.setText('Recording')
 
     def update(self):
         if self.start_time:
-            self.text.setText(str(datetime.now()-self.start_time)[:7])
+            self.clock_text.setText(str(datetime.now()-self.start_time)[:7])
 
     def stop(self):
-        self.text.setText('')
+        self.clock_text.setText('')
+        self.recording_text.setText('')
         self.start_time = None
+
+
+
+
+
+

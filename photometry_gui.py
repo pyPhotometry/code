@@ -124,7 +124,7 @@ class Photometry_GUI(QtGui.QWidget):
 
         self.analog_plot  = Analog_plot()
         self.digital_plot = Digital_plot()
-        #self.correlation_plot = Correlation_plot()
+        self.correlation_plot = Correlation_plot()
         self.event_triggered_plot = Event_triggered_plot()
 
         self.record_clock = Record_clock(self.analog_plot.axis)
@@ -141,15 +141,14 @@ class Photometry_GUI(QtGui.QWidget):
         self.horizontal_layout_1.addWidget(self.acquisition_groupbox)
         self.horizontal_layout_2.addWidget(self.file_groupbox)
         self.horizontal_layout_2.addWidget(self.controls_groupbox)
-        #self.horizontal_layout_3.addWidget(self.correlation_plot.axis, 40)
-        #self.horizontal_layout_3.addWidget(self.event_triggered_plot.axis, 60)
+        self.horizontal_layout_3.addWidget(self.correlation_plot.axis, 30)
+        self.horizontal_layout_3.addWidget(self.event_triggered_plot.axis, 60)
 
         self.vertical_layout.addLayout(self.horizontal_layout_1)
         self.vertical_layout.addLayout(self.horizontal_layout_2)
         self.vertical_layout.addWidget(self.analog_plot.axis,  40)
         self.vertical_layout.addWidget(self.digital_plot.axis, 15)
-        self.vertical_layout.addWidget(self.event_triggered_plot.axis, 40)
-        #self.vertical_layout.addLayout(self.horizontal_layout_3, 40)
+        self.vertical_layout.addLayout(self.horizontal_layout_3, 40)
 
         self.setLayout(self.vertical_layout)
 
@@ -225,7 +224,7 @@ class Photometry_GUI(QtGui.QWidget):
         # Reset plots.
         self.analog_plot.reset(self.board.sampling_rate)
         self.digital_plot.reset(self.board.sampling_rate)
-        #self.correlation_plot.reset(self.board.sampling_rate)
+        self.correlation_plot.reset(self.board.sampling_rate)
         self.event_triggered_plot.reset(self.board.sampling_rate)
         # Start acquisition.
         self.board.start()
@@ -245,7 +244,6 @@ class Photometry_GUI(QtGui.QWidget):
         if os.path.isdir(self.data_dir):
             self.board.record(self.data_dir, self.subject_ID)
             self.status_text.setText('Recording')
-            self.analog_plot.recording.setText('Recording')
             self.record_button.setEnabled(False)
             self.subject_text.setEnabled(False)
             self.data_dir_text.setEnabled(False)
@@ -270,7 +268,6 @@ class Photometry_GUI(QtGui.QWidget):
         self.data_dir_text.setEnabled(True)
         self.data_dir_button.setEnabled(True)
         self.status_text.setText('Connected')
-        self.analog_plot.recording.setText('')
         self.record_clock.stop()
 
     # Timer callbacks.
@@ -285,7 +282,7 @@ class Photometry_GUI(QtGui.QWidget):
                 # Update plots.
                 self.analog_plot.update(new_ADC1, new_ADC2)
                 self.digital_plot.update(new_DI1, new_DI2)
-                #self.correlation_plot.update(self.analog_plot)
+                self.correlation_plot.update(self.analog_plot)
                 self.event_triggered_plot.update(new_DI1, self.digital_plot, self.analog_plot)
                 self.record_clock.update()
 
