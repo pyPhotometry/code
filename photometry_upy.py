@@ -12,9 +12,9 @@ class Photometry():
         if mode == 'GCaMP/RFP': # 2 channel GFP/RFP acquisition mode.
             self.oversampling_rate = 3e5  # Hz.
         elif mode == 'GCaMP/iso': # GCaMP and isosbestic recorded on same channel using time division multiplexing.
-            self.oversampling_rate = 64e3 # Hz.
-        elif mode == 'GCaMP/RFP_dif': # GCaMP and RFP recorded using time division illumination and baseline subtraction..
             self.oversampling_rate = 128e3 # Hz.
+        elif mode == 'GCaMP/RFP_dif': # GCaMP and RFP recorded using time division illumination and baseline subtraction..
+            self.oversampling_rate = 256e3 # Hz.
         self.ADC1 = pyb.ADC(pins['ADC1'])
         self.ADC2 = pyb.ADC(pins['ADC2'])
         self.DI1 = pyb.Pin(pins['DI1'], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
@@ -118,16 +118,16 @@ class Photometry():
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
             self.LED1.value(True) # Turn on 470nm illumination.
         self.baseline = sum(self.ovs_buffer) >> 3            
-        pyb.udelay(350) # Wait before reading ADC (us).
+        pyb.udelay(300) # Wait before reading ADC (us).
         # Acquire sample, subtract baseline, store in buffer. 
         if self.write_ind % 2:
             self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
-            self.dig_sample = self.DI2.value()
             self.LED2.value(False) # Turn off 405nm illumination.
+            self.dig_sample = self.DI2.value()
         else:
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
-            self.dig_sample =self.DI1.value()
             self.LED1.value(False) # Turn on 470nm illumination.
+            self.dig_sample =self.DI1.value()
         self.sample = sum(self.ovs_buffer) >> 3
         self.sample = max(self.sample - self.baseline, 0)
         self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.dig_sample

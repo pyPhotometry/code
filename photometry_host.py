@@ -23,7 +23,7 @@ class Photometry_host(Pyboard):
         if mode == 'GCaMP/RFP':   # 2 channel GFP/RFP acquisition mode.
             self.max_rate = 1000  # Maximum sampling rate allowed for this mode.
         elif mode in ('GCaMP/iso', 'GCaMP/RFP_dif'): # GCaMP and isosbestic using time division multiplexing.
-            self.max_rate = 160   # Hz.
+            self.max_rate = 200   # Hz.
         self.set_sampling_rate(self.max_rate)
         self.enter_raw_repl() # Reset pyboard.
         self.exec('import photometry_upy') 
