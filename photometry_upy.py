@@ -45,6 +45,8 @@ class Photometry():
         if self.mode == 'GCaMP/RFP':
             self.sampling_timer.init(freq=sampling_rate)
             self.sampling_timer.callback(self.gcamp_rfp_ISR)
+            self.LED1.value(True)
+            self.LED2.value(True)
         elif self.mode == 'GCaMP/iso':
             self.sampling_timer.init(freq=sampling_rate*2)
             self.sampling_timer.callback(self.gcamp_iso_ISR)
@@ -62,6 +64,8 @@ class Photometry():
         # Stop aquisition
         self.sampling_timer.deinit()
         self.ovs_timer.deinit()
+        self.LED1.value(False)
+        self.LED2.value(False)
         gc.enable()
 
     @micropython.native

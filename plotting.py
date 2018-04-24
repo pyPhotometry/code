@@ -83,7 +83,7 @@ class Correlation_plot():
         if datetime.now() - self.last_slope_update > timedelta(seconds=1):
             self.last_slope_update = datetime.now()
             x = np.vstack([analog.ADC2.history, self.ones]).T
-            a, b = np.linalg.lstsq(x, analog.ADC1.history, rcond=None)[0]
+            a, b = np.linalg.lstsq(x, analog.ADC1.history)[0]
             x_c = np.array([np.min(analog.ADC2.history), np.max(analog.ADC2.history)])
             y_c = b + a*x_c
             self.reg_fit_plot.setData(x_c, y_c)
