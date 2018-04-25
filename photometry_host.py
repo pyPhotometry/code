@@ -2,6 +2,12 @@
 import os
 import numpy as np
 from datetime import datetime
+
+try:
+    import pyperclip
+except ImportError:
+    pyperclip = None
+
 from pyboard import Pyboard
 
 class Photometry_host(Pyboard):
@@ -44,8 +50,9 @@ class Photometry_host(Pyboard):
     def record(self, data_dir, subject_ID):
         '''Open data file and write data header.'''
         date_time = datetime.now()
-        file_path = os.path.join(data_dir, subject_ID + 
-                                 date_time.strftime('-%Y-%m-%d-%H%M%S') + '.ppd')
+        file_name = subject_ID + date_time.strftime('-%Y-%m-%d-%H%M%S') + '.ppd'
+        file_path = os.path.join(data_dir, file_name)
+        if pyperclip: pyperclip.copy(file_name)
         self.data_file = open(file_path, 'wb')
         data_header = bytearray([0]*42)
         data_header[ 0:12] = subject_ID.ljust(12).encode()
