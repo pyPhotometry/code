@@ -6,7 +6,8 @@ from serial import SerialException
 from serial.tools import list_ports
 
 from photometry_host import Photometry_host
-from config import pins, update_interval
+from pyboard import PyboardError
+from config import update_interval
 from plotting import Analog_plot, Digital_plot, Correlation_plot, Event_triggered_plot, Record_clock
 
 class Photometry_GUI(QtGui.QWidget):
@@ -77,6 +78,25 @@ class Photometry_GUI(QtGui.QWidget):
         self.mode_select.activated[str].connect(self.select_mode)
         self.rate_text.textChanged.connect(self.rate_text_change)
 
+        # Current groupbox
+
+        self.current_groupbox = QtGui.QGroupBox('LED current (mA)')
+
+        self.current_label_1 = QtGui.QLabel('CH1:')
+        self.current_spinbox_1 = QtGui.QSpinBox()
+        self.current_label_2 = QtGui.QLabel('CH2:')
+        self.current_spinbox_2 = QtGui.QSpinBox()  
+
+        self.currentgroup_layout = QtGui.QHBoxLayout()
+        self.currentgroup_layout.addWidget(self.current_label_1)
+        self.currentgroup_layout.addWidget(self.current_spinbox_1)
+        self.currentgroup_layout.addWidget(self.current_label_2)
+        self.currentgroup_layout.addWidget(self.current_spinbox_2)
+        self.current_groupbox.setLayout(self.currentgroup_layout)
+
+        self.current_spinbox_1.setRange(2,100)
+        self.current_spinbox_2.setRange(2,100)
+
         # File groupbox
 
         self.file_groupbox = QtGui.QGroupBox('Data file')
@@ -139,6 +159,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.horizontal_layout_1.addWidget(self.gui_groupbox)
         self.horizontal_layout_1.addWidget(self.board_groupbox)
         self.horizontal_layout_1.addWidget(self.acquisition_groupbox)
+        self.horizontal_layout_1.addWidget(self.current_groupbox)
         self.horizontal_layout_2.addWidget(self.file_groupbox)
         self.horizontal_layout_2.addWidget(self.controls_groupbox)
         self.horizontal_layout_3.addWidget(self.correlation_plot.axis, 30)
@@ -169,25 +190,34 @@ class Photometry_GUI(QtGui.QWidget):
 
     def connect(self):
         try:
-            self.board = Photometry_host(self.port_select.currentText(), pins)
+            self.board = Photometry_host(self.port_select.currentText())
             self.select_mode(self.mode_select.currentText())
             self.port_select.setEnabled(False)
             self.acquisition_groupbox.setEnabled(True)
+            self.current_groupbox.setEnabled(True)
             self.file_groupbox.setEnabled(True)
             self.controls_groupbox.setEnabled(True)
             self.stop_button.setEnabled(False)
             self.record_button.setEnabled(False)
             self.connect_button.setText('Disconnect')
             self.status_text.setText('Connected')
+            self.current_spinbox_1.valueChanged.connect(
+                lambda v:self.board.set_LED_current(LED_1_current=int(v)))
+            self.current_spinbox_2.valueChanged.connect(
+                lambda v:self.board.set_LED_current(LED_2_current=int(v)))
             self.connected = True
         except SerialException:
             self.status_text.setText('Connection failed')
+        except PyboardError:
+            self.status_text.setText('Firmware error')
+            self.board.close()
 
     def disconnect(self):
         # Disconnect from pyboard.
         if self.board: self.board.close()
         self.board = None
         self.acquisition_groupbox.setEnabled(False)
+        self.current_groupbox.setEnabled(False)
         self.file_groupbox.setEnabled(False)
         self.controls_groupbox.setEnabled(False)
         self.port_select.setEnabled(True)
@@ -234,6 +264,7 @@ class Photometry_GUI(QtGui.QWidget):
         # Update UI.
         self.board_groupbox.setEnabled(False)
         self.acquisition_groupbox.setEnabled(False)
+        self.current_groupbox.setEnabled(False)
         self.start_button.setEnabled(False)
         if self.test_data_path():
             self.record_button.setEnabled(True)
@@ -262,6 +293,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.board.serial.reset_input_buffer()
         self.board_groupbox.setEnabled(True)
         self.acquisition_groupbox.setEnabled(True)
+        self.current_groupbox.setEnabled(True)
         self.start_button.setEnabled(True)
         self.record_button.setEnabled(False)
         self.subject_text.setEnabled(True)

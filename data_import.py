@@ -4,7 +4,7 @@ from datetime import datetime
 import numpy as np
 from scipy.signal import butter, filtfilt
 
-def import_data(file_path, filt_freq=20):
+def import_data(file_path, low_pass=20, high_pass=0.01):
     with open(file_path, 'rb') as f:
         header_size = int.from_bytes(f.read(2), 'little')
         data_header = f.read(header_size)
@@ -25,10 +25,17 @@ def import_data(file_path, filt_freq=20):
     DI2 = digital[1::2]
     t = np.arange(ADC1.shape[0]) / sampling_rate # Time relative to start of recording (seconds).
     # Filter signals.
-    b, a = butter(2, filt_freq/(0.5*sampling_rate), 'low')
-    ADC1_filt = filtfilt(b, a, ADC1)
-    ADC2_filt = filtfilt(b, a, ADC2)
-
+    if low_pass and high_pass:
+        b, a = butter(2, np.array([high_pass, low_pass])/(0.5*sampling_rate), 'bandpass')
+    elif low_pass:
+        b, a = butter(2, low_pass/(0.5*sampling_rate), 'low')
+    elif high_pass:
+        b, a = butter(2, high_pass/(0.5*sampling_rate), 'high')
+    if low_pass or high_pass:
+        ADC1_filt = filtfilt(b, a, ADC1)
+        ADC2_filt = filtfilt(b, a, ADC2)
+    else:
+        ADC1_filt = DC2_filt = None
     return {'subject_ID'   : subject_ID,
             'datetime'     : date_time,
             'datetime_str' : date_time.strftime('%Y-%m-%d %H:%M:%S'),

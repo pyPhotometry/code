@@ -2,6 +2,7 @@
 import os
 import numpy as np
 from datetime import datetime
+from time import sleep
 
 try:
     import pyperclip
@@ -13,10 +14,9 @@ from pyboard import Pyboard
 class Photometry_host(Pyboard):
     '''Class for aquiring data from a micropython photometry system on a host computer.'''
 
-    def __init__(self, port, pins):
+    def __init__(self, port):
         '''Open connection to pyboard and instantiate Photometry class on pyboard with
         provided parameters.'''
-        self.pins = pins
         self.data_file = None
         self.volts_per_division = [3.3/(1<<15), 3.3/(1<<15)] # For signal [1,2]
         super().__init__(port, baudrate=115200)
@@ -33,8 +33,10 @@ class Photometry_host(Pyboard):
         self.set_sampling_rate(self.max_rate)
         self.enter_raw_repl() # Reset pyboard.
         self.exec('import photometry_upy') 
-        self.exec("p = photometry_upy.Photometry(mode='{}', pins={})"
-                   .format(self.mode, self.pins))        
+        self.exec("p = photometry_upy.Photometry(mode='{}')".format(self.mode))        
+
+    def set_LED_current(self, LED_1_current=None, LED_2_current=None):
+        self.exec('p.set_LED_current({},{})'.format(LED_1_current, LED_2_current))
 
     def set_sampling_rate(self, sampling_rate):
         self.sampling_rate = int(min(sampling_rate, self.max_rate))
@@ -44,7 +46,6 @@ class Photometry_host(Pyboard):
 
     def start(self):
         '''Start data aquistion and streaming on the pyboard.'''
-        self.serial.reset_input_buffer()
         self.exec_raw_no_follow('p.start({},{})'.format(self.sampling_rate, self.buffer_size))
 
     def record(self, data_dir, subject_ID):
@@ -73,6 +74,8 @@ class Photometry_host(Pyboard):
         if self.data_file:
             self.stop_recording()
         self.serial.write(b'\x03') # Stop signal
+        sleep(0.1)
+        self.serial.reset_input_buffer()
 
     def process_data(self):
         '''Read a chunk of data from the serial line, extract signals and check end bytes.
