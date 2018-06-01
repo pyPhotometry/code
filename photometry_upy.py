@@ -32,8 +32,14 @@ class Photometry():
         self.set_LED_current(2,2)
 
     def set_LED_current(self, LED_1_current=None, LED_2_current=None):
-        if LED_1_current: self.LED_1_value = 4000 - 40*LED_1_current
-        if LED_2_current: self.LED_2_value = 4000 - 40*LED_2_current
+        if LED_1_current: 
+            self.LED_1_value = 4000 - 40*LED_1_current
+            if self.running: 
+                self.LED1.write(self.LED_1_value)
+        if LED_2_current:
+            self.LED_2_value = 4000 - 40*LED_2_current
+            if self.running: 
+                self.LED2.write(self.LED_2_value)
 
     def start(self, sampling_rate, buffer_size):
         # Start acquisition, stream data to computer, wait for ctrl+c over serial to stop. 
@@ -51,6 +57,8 @@ class Photometry():
         self.buffer_ready = False # Set to True when full buffer is ready to send.
         self.running = True
         self.ovs_timer.init(freq=self.oversampling_rate)
+        self.usb_serial.setinterrupt(-1) # Disable serial interrupt.
+        gc.collect()
         gc.disable()
         if self.mode == 'GCaMP/RFP':
             self.sampling_timer.init(freq=sampling_rate)
@@ -63,12 +71,20 @@ class Photometry():
         elif self.mode == 'GCaMP/RFP_dif':
             self.sampling_timer.init(freq=sampling_rate*2)
             self.sampling_timer.callback(self.gcamp_rfp_diff_ISR)
-        try:
-            while True:
-                if self.buffer_ready:
-                    self._send_buffer()
-        except KeyboardInterrupt:
-            self.stop()
+        while True:
+            if self.buffer_ready:
+                self._send_buffer()
+            if self.usb_serial.any():
+                self.recieved_byte = self.usb_serial.read(1)
+                if self.recieved_byte == b'\xFF': # Stop signal.
+                    break
+                elif self.recieved_byte == b'\xFD': # Set LED 1 power.
+                    self.set_LED_current(
+                        LED_1_current=int.from_bytes(self.usb_serial.read(1), 'little'))
+                elif self.recieved_byte == b'\xFE': # Set LED 2 power.
+                    self.set_LED_current(
+                        LED_2_current=int.from_bytes(self.usb_serial.read(1), 'little'))      
+        self.stop()
 
     def stop(self):
         # Stop aquisition
@@ -77,6 +93,7 @@ class Photometry():
         self.LED1.write(4095)
         self.LED2.write(4095)
         self.running = False
+        self.usb_serial.setinterrupt(3) # Enable serial interrupt.
         gc.enable()
 
     @micropython.native
@@ -157,7 +174,7 @@ class Photometry():
     def _send_buffer(self):
         # Send full buffer to host computer. Format of the serial chunks sent to the computer: 
         # buffer[:-2] = data, buffer[-2] = checksum, buffer[-1] = 0.
-        if self.usb_serial.any() and self.usb_serial.read(1) == b'\x03':
+        if self.usb_serial.any() and self.usb_serial.read(1) == b'\xFF':
                 self.stop()
         self.sample_buffers[self.send_buf][-2] = sum(self.buffer_data_mv[self.send_buf]) # Checksum
         self.usb_serial.send(self.sample_buffers[self.send_buf])

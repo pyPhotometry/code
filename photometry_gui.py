@@ -94,8 +94,8 @@ class Photometry_GUI(QtGui.QWidget):
         self.currentgroup_layout.addWidget(self.current_spinbox_2)
         self.current_groupbox.setLayout(self.currentgroup_layout)
 
-        self.current_spinbox_1.setRange(2,100)
-        self.current_spinbox_2.setRange(2,100)
+        self.current_spinbox_1.setRange(1,100)
+        self.current_spinbox_2.setRange(1,100)
 
         # File groupbox
 
@@ -264,7 +264,6 @@ class Photometry_GUI(QtGui.QWidget):
         # Update UI.
         self.board_groupbox.setEnabled(False)
         self.acquisition_groupbox.setEnabled(False)
-        self.current_groupbox.setEnabled(False)
         self.start_button.setEnabled(False)
         if self.test_data_path():
             self.record_button.setEnabled(True)
@@ -275,6 +274,7 @@ class Photometry_GUI(QtGui.QWidget):
         if os.path.isdir(self.data_dir):
             self.board.record(self.data_dir, self.subject_ID)
             self.status_text.setText('Recording')
+            self.current_groupbox.setEnabled(False)
             self.record_button.setEnabled(False)
             self.subject_text.setEnabled(False)
             self.data_dir_text.setEnabled(False)

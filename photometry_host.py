@@ -19,6 +19,7 @@ class Photometry_host(Pyboard):
         provided parameters.'''
         self.data_file = None
         self.volts_per_division = [3.3/(1<<15), 3.3/(1<<15)] # For signal [1,2]
+        self.running = False
         super().__init__(port, baudrate=115200)
  
     def set_mode(self, mode):
@@ -36,7 +37,13 @@ class Photometry_host(Pyboard):
         self.exec("p = photometry_upy.Photometry(mode='{}')".format(self.mode))        
 
     def set_LED_current(self, LED_1_current=None, LED_2_current=None):
-        self.exec('p.set_LED_current({},{})'.format(LED_1_current, LED_2_current))
+        if self.running:
+            if LED_1_current:
+                self.serial.write(b'\xFD' + LED_1_current.to_bytes(1, 'little'))
+            if LED_2_current:
+                self.serial.write(b'\xFE' + LED_2_current.to_bytes(1, 'little'))
+        else:
+            self.exec('p.set_LED_current({},{})'.format(LED_1_current, LED_2_current))
 
     def set_sampling_rate(self, sampling_rate):
         self.sampling_rate = int(min(sampling_rate, self.max_rate))
@@ -47,6 +54,7 @@ class Photometry_host(Pyboard):
     def start(self):
         '''Start data aquistion and streaming on the pyboard.'''
         self.exec_raw_no_follow('p.start({},{})'.format(self.sampling_rate, self.buffer_size))
+        self.running = True
 
     def record(self, data_dir, subject_ID):
         '''Open data file and write data header.'''
@@ -73,9 +81,10 @@ class Photometry_host(Pyboard):
     def stop(self):
         if self.data_file:
             self.stop_recording()
-        self.serial.write(b'\x03') # Stop signal
+        self.serial.write(b'\xFF') # Stop signal
         sleep(0.1)
         self.serial.reset_input_buffer()
+        self.running = False
 
     def process_data(self):
         '''Read a chunk of data from the serial line, extract signals and check end bytes.
