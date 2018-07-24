@@ -19,11 +19,8 @@ class Photometry():
         self.ADC2 = pyb.ADC('X12')
         self.DI1 = pyb.Pin('X1', pyb.Pin.IN, pyb.Pin.PULL_DOWN)
         self.DI2 = pyb.Pin('X2', pyb.Pin.IN, pyb.Pin.PULL_DOWN)
-        self.LED1 = pyb.DAC(1, buffering=True, bits=12)
-        self.LED2 = pyb.DAC(2, buffering=True, bits=12)
-        self.LED1.write(4095)
-        self.LED2.write(4095)
-        self.LED_enable = pyb.Pin('X7', pyb.Pin.OUT, value=True)
+        self.LED1 = pyb.DAC(1, bits=12)
+        self.LED2 = pyb.DAC(2, bits=12)
         self.ovs_buffer = array('H',[0]*64) # Oversampling buffer
         self.ovs_timer = pyb.Timer(2)       # Oversampling timer.
         self.sampling_timer = pyb.Timer(3)
@@ -33,11 +30,11 @@ class Photometry():
 
     def set_LED_current(self, LED_1_current=None, LED_2_current=None):
         if LED_1_current: 
-            self.LED_1_value = 4000 - 40*LED_1_current
+            self.LED_1_value = int(31*LED_1_current+46)
             if self.running: 
                 self.LED1.write(self.LED_1_value)
         if LED_2_current:
-            self.LED_2_value = 4000 - 40*LED_2_current
+            self.LED_2_value = int(31*LED_2_current+46)
             if self.running: 
                 self.LED2.write(self.LED_2_value)
 
@@ -90,8 +87,8 @@ class Photometry():
         # Stop aquisition
         self.sampling_timer.deinit()
         self.ovs_timer.deinit()
-        self.LED1.write(4095)
-        self.LED2.write(4095)
+        self.LED1.write(0)
+        self.LED2.write(0)
         self.running = False
         self.usb_serial.setinterrupt(3) # Enable serial interrupt.
         gc.enable()
@@ -128,10 +125,10 @@ class Photometry():
         self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
         self.sample = sum(self.ovs_buffer) >> 3
         if self.write_ind % 2:
-            self.LED2.write(4095) # Turn off 405nm illumination.
+            self.LED2.write(0) # Turn off 405nm illumination.
             self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.DI2.value()
         else:
-            self.LED1.write(4095) # Turn on 470nm illumination.
+            self.LED1.write(0) # Turn on 470nm illumination.
             self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.DI1.value()
         # Update write index and switch buffers if full.
         self.write_ind = (self.write_ind + 1) % self.buffer_size
@@ -154,11 +151,11 @@ class Photometry():
         # Acquire sample, subtract baseline, store in buffer. 
         if self.write_ind % 2:
             self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
-            self.LED2.write(4095) # Turn off 405nm illumination.
+            self.LED2.write(0) # Turn off 405nm illumination.
             self.dig_sample = self.DI2.value()
         else:
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
-            self.LED1.write(4095) # Turn on 470nm illumination.
+            self.LED1.write(0) # Turn on 470nm illumination.
             self.dig_sample =self.DI1.value()
         self.sample = sum(self.ovs_buffer) >> 3
         self.sample = max(self.sample - self.baseline, 0)

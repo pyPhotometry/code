@@ -7,7 +7,7 @@ from serial.tools import list_ports
 
 from photometry_host import Photometry_host
 from pyboard import PyboardError
-from config import update_interval
+from config import update_interval, default_LED_current
 from plotting import Analog_plot, Digital_plot, Correlation_plot, Event_triggered_plot, Record_clock
 
 class Photometry_GUI(QtGui.QWidget):
@@ -96,6 +96,8 @@ class Photometry_GUI(QtGui.QWidget):
 
         self.current_spinbox_1.setRange(1,100)
         self.current_spinbox_2.setRange(1,100)
+        self.current_spinbox_1.setValue(default_LED_current[0])
+        self.current_spinbox_2.setValue(default_LED_current[1])
 
         # File groupbox
 
@@ -201,10 +203,12 @@ class Photometry_GUI(QtGui.QWidget):
             self.record_button.setEnabled(False)
             self.connect_button.setText('Disconnect')
             self.status_text.setText('Connected')
+            self.board.set_LED_current(self.current_spinbox_1.value(),self.current_spinbox_2.value())
             self.current_spinbox_1.valueChanged.connect(
                 lambda v:self.board.set_LED_current(LED_1_current=int(v)))
             self.current_spinbox_2.valueChanged.connect(
                 lambda v:self.board.set_LED_current(LED_2_current=int(v)))
+            self
             self.connected = True
         except SerialException:
             self.status_text.setText('Connection failed')
