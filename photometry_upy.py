@@ -176,5 +176,3 @@ class Photometry():
         self.sample_buffers[self.send_buf][-2] = sum(self.buffer_data_mv[self.send_buf]) # Checksum
         self.usb_serial.send(self.sample_buffers[self.send_buf])
         self.buffer_ready = False
-
-

@@ -5,7 +5,7 @@ from pyqtgraph.Qt import QtGui, QtCore
 from serial import SerialException
 from serial.tools import list_ports
 
-from photometry_host import Photometry_host
+from photometry_host import Photometry_host, VERSION
 from pyboard import PyboardError
 from config import update_interval, default_LED_current
 from plotting import Analog_plot, Digital_plot, Correlation_plot, Event_triggered_plot, Record_clock
@@ -14,7 +14,7 @@ class Photometry_GUI(QtGui.QWidget):
 
     def __init__(self, parent=None):
         super(QtGui.QWidget, self).__init__(parent)
-        self.setWindowTitle('pyPhotometry GUI')
+        self.setWindowTitle('pyPhotometry GUI v{}'.format(VERSION))
         self.sizeHint = lambda: QtCore.QSize (600, 1080)
 
         # Variables

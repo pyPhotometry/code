@@ -1,6 +1,7 @@
 # Code which runs on host computer and implements communication with pyboard.
 import os
 import numpy as np
+import json
 from datetime import datetime
 from time import sleep
 
@@ -10,6 +11,8 @@ except ImportError:
     pyperclip = None
 
 from pyboard import Pyboard
+
+VERSION = 0.1 # Version number of pyPhotometry.
 
 class Photometry_host(Pyboard):
     '''Class for aquiring data from a micropython photometry system on a host computer.'''
@@ -63,13 +66,13 @@ class Photometry_host(Pyboard):
         file_path = os.path.join(data_dir, file_name)
         if pyperclip: pyperclip.copy(file_name)
         self.data_file = open(file_path, 'wb')
-        data_header = bytearray([0]*42)
-        data_header[ 0:12] = subject_ID.ljust(12).encode()
-        data_header[12:31] = date_time.isoformat(timespec='seconds').encode() # ISO 8601 format data time string
-        data_header[31   ] = {'GCaMP/RFP':1,'GCaMP/iso':2,'GCaMP/RFP_dif':3}[self.mode]
-        data_header[32:34] = self.sampling_rate.to_bytes(2, 'little')
-        data_header[34:38] = int(self.volts_per_division[0]*1e9).to_bytes(4, 'little')
-        data_header[38:42] = int(self.volts_per_division[1]*1e9).to_bytes(4, 'little')
+        header_dict = {'subject_ID': subject_ID,
+                       'date_time' : date_time.isoformat(timespec='seconds'),
+                       'mode': self.mode,
+                       'sampling_rate': self.sampling_rate,
+                       'volts_per_division': self.volts_per_division,
+                       'version': VERSION}
+        data_header = json.dumps(header_dict).encode()
         self.data_file.write(len(data_header).to_bytes(2, 'little'))
         self.data_file.write(data_header)
 
