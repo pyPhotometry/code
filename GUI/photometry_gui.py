@@ -155,6 +155,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.vertical_layout     = QtGui.QVBoxLayout()
         self.horizontal_layout_1 = QtGui.QHBoxLayout()
         self.horizontal_layout_2 = QtGui.QHBoxLayout()
+        self.plot_splitter = QtGui.QSplitter(QtCore.Qt.Vertical)
 
         self.horizontal_layout_1.addWidget(self.gui_groupbox)
         self.horizontal_layout_1.addWidget(self.board_groupbox)
@@ -162,12 +163,14 @@ class Photometry_GUI(QtGui.QWidget):
         self.horizontal_layout_1.addWidget(self.current_groupbox)
         self.horizontal_layout_2.addWidget(self.file_groupbox)
         self.horizontal_layout_2.addWidget(self.controls_groupbox)
+        self.plot_splitter.addWidget(self.analog_plot.axis)
+        self.plot_splitter.addWidget(self.digital_plot.axis)
+        self.plot_splitter.addWidget(self.event_triggered_plot.axis)
+        self.plot_splitter.setSizes([300,100,200])
 
         self.vertical_layout.addLayout(self.horizontal_layout_1)
         self.vertical_layout.addLayout(self.horizontal_layout_2)
-        self.vertical_layout.addWidget(self.analog_plot.axis,  40)
-        self.vertical_layout.addWidget(self.digital_plot.axis, 15)
-        self.vertical_layout.addWidget(self.event_triggered_plot.axis, 30)
+        self.vertical_layout.addWidget(self.plot_splitter)
 
         self.setLayout(self.vertical_layout)
 
