@@ -8,7 +8,7 @@ from serial.tools import list_ports
 from photometry_host import Photometry_host, VERSION
 from pyboard import PyboardError
 from config import update_interval, default_LED_current
-from plotting import Analog_plot, Digital_plot, Correlation_plot, Event_triggered_plot, Record_clock
+from plotting import Analog_plot, Digital_plot, Event_triggered_plot, Record_clock
 
 class Photometry_GUI(QtGui.QWidget):
 
@@ -146,7 +146,6 @@ class Photometry_GUI(QtGui.QWidget):
 
         self.analog_plot  = Analog_plot()
         self.digital_plot = Digital_plot()
-        self.correlation_plot = Correlation_plot()
         self.event_triggered_plot = Event_triggered_plot()
 
         self.record_clock = Record_clock(self.analog_plot.axis)
@@ -156,7 +155,6 @@ class Photometry_GUI(QtGui.QWidget):
         self.vertical_layout     = QtGui.QVBoxLayout()
         self.horizontal_layout_1 = QtGui.QHBoxLayout()
         self.horizontal_layout_2 = QtGui.QHBoxLayout()
-        self.horizontal_layout_3 = QtGui.QHBoxLayout()
 
         self.horizontal_layout_1.addWidget(self.gui_groupbox)
         self.horizontal_layout_1.addWidget(self.board_groupbox)
@@ -164,14 +162,12 @@ class Photometry_GUI(QtGui.QWidget):
         self.horizontal_layout_1.addWidget(self.current_groupbox)
         self.horizontal_layout_2.addWidget(self.file_groupbox)
         self.horizontal_layout_2.addWidget(self.controls_groupbox)
-        self.horizontal_layout_3.addWidget(self.correlation_plot.axis, 30)
-        self.horizontal_layout_3.addWidget(self.event_triggered_plot.axis, 60)
 
         self.vertical_layout.addLayout(self.horizontal_layout_1)
         self.vertical_layout.addLayout(self.horizontal_layout_2)
         self.vertical_layout.addWidget(self.analog_plot.axis,  40)
         self.vertical_layout.addWidget(self.digital_plot.axis, 15)
-        self.vertical_layout.addLayout(self.horizontal_layout_3, 40)
+        self.vertical_layout.addWidget(self.event_triggered_plot.axis, 30)
 
         self.setLayout(self.vertical_layout)
 
@@ -238,6 +234,8 @@ class Photometry_GUI(QtGui.QWidget):
 
     def select_mode(self, mode):
         self.board.set_mode(mode)
+        self.board.set_LED_current(LED_1_current=self.current_spinbox_1.value(),
+                                   LED_2_current=self.current_spinbox_2.value())
         self.rate_text.setText(str(self.board.sampling_rate))
 
     def rate_text_change(self, text):
@@ -258,7 +256,6 @@ class Photometry_GUI(QtGui.QWidget):
         # Reset plots.
         self.analog_plot.reset(self.board.sampling_rate)
         self.digital_plot.reset(self.board.sampling_rate)
-        self.correlation_plot.reset(self.board.sampling_rate)
         self.event_triggered_plot.reset(self.board.sampling_rate)
         # Start acquisition.
         self.board.start()
@@ -318,7 +315,6 @@ class Photometry_GUI(QtGui.QWidget):
                 # Update plots.
                 self.analog_plot.update(new_ADC1, new_ADC2)
                 self.digital_plot.update(new_DI1, new_DI2)
-                self.correlation_plot.update(self.analog_plot)
                 self.event_triggered_plot.update(new_DI1, self.digital_plot, self.analog_plot)
                 self.record_clock.update()
 

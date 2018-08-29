@@ -31,11 +31,11 @@ class Photometry():
     def set_LED_current(self, LED_1_current=None, LED_2_current=None):
         if LED_1_current: 
             self.LED_1_value = int(31*LED_1_current+46)
-            if self.running: 
+            if self.running and (self.mode == 'GCaMP/RFP'): 
                 self.LED1.write(self.LED_1_value)
         if LED_2_current:
             self.LED_2_value = int(31*LED_2_current+46)
-            if self.running: 
+            if self.running and (self.mode == 'GCaMP/RFP'): 
                 self.LED2.write(self.LED_2_value)
 
     def start(self, sampling_rate, buffer_size):

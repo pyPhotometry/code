@@ -54,40 +54,6 @@ class Digital_plot():
             self.DI2.update(new_DI2)
             self.plot_1.setData(self.x, self.DI1.history)
             self.plot_2.setData(self.x, self.DI2.history)
-
-# Correlation plot -------------------------------------------------
-
-class Correlation_plot():
-
-    def __init__(self):
-        self.axis  = pg.PlotWidget(title="Signal correlation" , labels={'left':'GCaMP', 'bottom':'control'})
-        self.corr_plot = self.axis.plot(pen=pg.mkPen(pg.hsvColor(0.5, alpha=0.1)))
-        self.reg_fit_plot = self.axis.plot(pen=pg.mkPen(style=QtCore.Qt.DashLine))
-        self.slope_text = pg.TextItem(text='')
-        self.slope_text.setFont(QtGui.QFont('arial',10, QtGui.QFont.Bold))
-        self.axis.getViewBox().addItem(self.slope_text, ignoreBounds=True)
-        self.slope_text.setParentItem(self.axis.getViewBox())
-        self.slope_text.setPos(10,10)
-
-    def reset(self, sampling_rate):
-        history_length = int(sampling_rate*history_dur)
-        self.DI1 = Signal_history(history_length, int) 
-        self.DI2 = Signal_history(history_length, int)
-        self.ones = np.ones(history_length, int)
-        self.x = np.linspace(-history_dur, 0, history_length) # X axis for timeseries plots.
-        self.last_slope_update = datetime.now()
-        self.slope_text.setText('')
-
-    def update(self, analog):
-        self.corr_plot.setData(analog.ADC2.history, analog.ADC1.history)
-        if datetime.now() - self.last_slope_update > timedelta(seconds=1):
-            self.last_slope_update = datetime.now()
-            x = np.vstack([analog.ADC2.history, self.ones]).T
-            a, b = np.linalg.lstsq(x, analog.ADC1.history)[0]
-            x_c = np.array([np.min(analog.ADC2.history), np.max(analog.ADC2.history)])
-            y_c = b + a*x_c
-            self.reg_fit_plot.setData(x_c, y_c)
-            self.slope_text.setText('Slope: {:.2f}'.format(a))
  
 # Event triggered plot -------------------------------------------------
 
