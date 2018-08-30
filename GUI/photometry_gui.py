@@ -95,8 +95,8 @@ class Photometry_GUI(QtGui.QWidget):
         self.currentgroup_layout.addWidget(self.current_spinbox_2)
         self.current_groupbox.setLayout(self.currentgroup_layout)
 
-        self.current_spinbox_1.setRange(1,100)
-        self.current_spinbox_2.setRange(1,100)
+        self.current_spinbox_1.setRange(0,100)
+        self.current_spinbox_2.setRange(0,100)
         self.current_spinbox_1.setValue(default_LED_current[0])
         self.current_spinbox_2.setValue(default_LED_current[1])
 

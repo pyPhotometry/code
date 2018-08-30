@@ -115,12 +115,12 @@ class Record_clock():
         self.clock_text.setFont(QtGui.QFont('arial',12, QtGui.QFont.Bold))
         axis.getViewBox().addItem(self.clock_text, ignoreBounds=True)
         self.clock_text.setParentItem(axis.getViewBox())
-        self.clock_text.setPos(190,10)
+        self.clock_text.setPos(240,10)
         self.recording_text = pg.TextItem(text='', color=(255,0,0))
         self.recording_text.setFont(QtGui.QFont('arial',12,QtGui.QFont.Bold))
         axis.getViewBox().addItem(self.recording_text, ignoreBounds=True)
         self.recording_text.setParentItem(axis.getViewBox())
-        self.recording_text.setPos(100,10)
+        self.recording_text.setPos(110,10)
         self.start_time = None
 
     def start(self):

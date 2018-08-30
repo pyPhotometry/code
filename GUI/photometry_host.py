@@ -41,9 +41,9 @@ class Photometry_host(Pyboard):
 
     def set_LED_current(self, LED_1_current=None, LED_2_current=None):
         if self.running:
-            if LED_1_current:
+            if LED_1_current is not None:
                 self.serial.write(b'\xFD' + LED_1_current.to_bytes(1, 'little'))
-            if LED_2_current:
+            if LED_2_current is not None:
                 self.serial.write(b'\xFE' + LED_2_current.to_bytes(1, 'little'))
         else:
             self.exec('p.set_LED_current({},{})'.format(LED_1_current, LED_2_current))
