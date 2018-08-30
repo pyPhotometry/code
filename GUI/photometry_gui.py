@@ -20,7 +20,8 @@ class Photometry_GUI(QtGui.QWidget):
         # Variables
 
         self.board = None
-        self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+        self.data_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
         self.subject_ID = ''
         self.running = False
         self.connected = False
@@ -166,7 +167,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.plot_splitter.addWidget(self.analog_plot.axis)
         self.plot_splitter.addWidget(self.digital_plot.axis)
         self.plot_splitter.addWidget(self.event_triggered_plot.axis)
-        self.plot_splitter.setSizes([300,100,200])
+        self.plot_splitter.setSizes([300,120,200])
 
         self.vertical_layout.addLayout(self.horizontal_layout_1)
         self.vertical_layout.addLayout(self.horizontal_layout_2)
@@ -233,7 +234,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.data_dir = self.data_dir_text.text()
         self.subject_ID = self.subject_text.text()
         if (self.running and os.path.isdir(self.data_dir) and str(self.subject_ID)):
-                self.record_button.setEnabled(True)      
+                self.record_button.setEnabled(True)
 
     def select_mode(self, mode):
         self.board.set_mode(mode)
