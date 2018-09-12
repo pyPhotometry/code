@@ -1,4 +1,7 @@
-# Code which runs on host computer and implements communication with pyboard.
+# Code which runs on host computer and implements communication with pyboard and saving 
+# data to disk.  
+# Copyright (c) Thomas Akam 2018.  Licenced under the GNU General Public License v3.
+
 import os
 import numpy as np
 import json
@@ -11,35 +14,41 @@ except ImportError:
     pyperclip = None
 
 from pyboard import Pyboard
+import config
 
-VERSION = 0.1 # Version number of pyPhotometry.
-
-class Photometry_host(Pyboard):
+class Acquisition_board(Pyboard):
     '''Class for aquiring data from a micropython photometry system on a host computer.'''
 
     def __init__(self, port):
         '''Open connection to pyboard and instantiate Photometry class on pyboard with
         provided parameters.'''
         self.data_file = None
-        self.volts_per_division = [3.3/(1<<15), 3.3/(1<<15)] # For signal [1,2]
+        self.volts_per_division = config.ADC_volts_per_division
         self.running = False
+        self.LED_current = [0,0]
         super().__init__(port, baudrate=115200)
+        self.enter_raw_repl() # Reset pyboard.
+        self.exec('import photometry_upy') 
+        self.exec("p = photometry_upy.Photometry(pins={}, LED_calibration={})"
+                  .format(config.pins, config.LED_calibration))     
  
     def set_mode(self, mode):
         # Set control channel mode.
-        assert mode in ['GCaMP/RFP', 'GCaMP/iso', 'GCaMP/RFP_dif'], \
-            "Invalid mode, value values: 'GCaMP/RFP', 'GCaMP/iso' or 'GCaMP/RFP_dif'."
+        assert mode in ['2 colour continuous', '1 colour time div.', '2 colour time div.'], \
+            "Invalid mode, value values: '2 colour continuous', '1 colour time div.' or '2 colour time div.'."
         self.mode = mode
-        if mode == 'GCaMP/RFP':   # 2 channel GFP/RFP acquisition mode.
+        if mode == '2 colour continuous':   # 2 channel GFP/RFP acquisition mode.
             self.max_rate = 1000  # Maximum sampling rate allowed for this mode.
-        elif mode in ('GCaMP/iso', 'GCaMP/RFP_dif'): # GCaMP and isosbestic using time division multiplexing.
-            self.max_rate = 200   # Hz.
+        elif mode in ('1 colour time div.', '2 colour time div.'): # GCaMP and isosbestic using time division multiplexing.
+            self.max_rate = 130   # Hz.
         self.set_sampling_rate(self.max_rate)
-        self.enter_raw_repl() # Reset pyboard.
-        self.exec('import photometry_upy') 
-        self.exec("p = photometry_upy.Photometry(mode='{}')".format(self.mode))        
+        self.exec("p.set_mode('{}')".format(mode))
 
     def set_LED_current(self, LED_1_current=None, LED_2_current=None):
+        if LED_1_current is not None:   
+            self.LED_current[0] = LED_1_current
+        if LED_2_current is not None:   
+            self.LED_current[1] = LED_2_current
         if self.running:
             if LED_1_current is not None:
                 self.serial.write(b'\xFD' + LED_1_current.to_bytes(1, 'little'))
@@ -71,7 +80,8 @@ class Photometry_host(Pyboard):
                        'mode': self.mode,
                        'sampling_rate': self.sampling_rate,
                        'volts_per_division': self.volts_per_division,
-                       'version': VERSION}
+                       'LED_current': self.LED_current,
+                       'version': config.VERSION}
         data_header = json.dumps(header_dict).encode()
         self.data_file.write(len(data_header).to_bytes(2, 'little'))
         self.data_file.write(data_header)

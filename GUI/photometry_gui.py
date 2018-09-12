@@ -1,21 +1,22 @@
 # Code which runs on host computer and implements the graphical user interface.
+# Copyright (c) Thomas Akam 2018.  Licenced under the GNU General Public License v3.
 
 import os
 from pyqtgraph.Qt import QtGui, QtCore
 from serial import SerialException
 from serial.tools import list_ports
 
-from photometry_host import Photometry_host, VERSION
+import config
+from acquisition_board import Acquisition_board
 from pyboard import PyboardError
-from config import update_interval, default_LED_current
 from plotting import Analog_plot, Digital_plot, Event_triggered_plot, Record_clock
 
 class Photometry_GUI(QtGui.QWidget):
 
     def __init__(self, parent=None):
         super(QtGui.QWidget, self).__init__(parent)
-        self.setWindowTitle('pyPhotometry GUI v{}'.format(VERSION))
-        self.sizeHint = lambda: QtCore.QSize (600, 1080)
+        self.setWindowTitle('pyPhotometry GUI v{}'.format(config.VERSION))
+        self.sizeHint = lambda: QtCore.QSize (900, 1080)
 
         # Variables
 
@@ -30,17 +31,15 @@ class Photometry_GUI(QtGui.QWidget):
 
         # GUI groupbox.
 
-        self.gui_groupbox = QtGui.QGroupBox('GUI')
+        self.status_groupbox = QtGui.QGroupBox('GUI')
 
-        self.status_label = QtGui.QLabel('Status:')
         self.status_text = QtGui.QLineEdit('Not connected')
         self.status_text.setStyleSheet('background-color:rgb(210, 210, 210);')
         self.status_text.setReadOnly(True)
 
         self.guigroup_layout = QtGui.QHBoxLayout()
-        self.guigroup_layout.addWidget(self.status_label)
         self.guigroup_layout.addWidget(self.status_text)
-        self.gui_groupbox.setLayout(self.guigroup_layout)  
+        self.status_groupbox.setLayout(self.guigroup_layout)  
 
         # Board groupbox
 
@@ -65,9 +64,13 @@ class Photometry_GUI(QtGui.QWidget):
 
         self.mode_label = QtGui.QLabel("Mode:")
         self.mode_select = QtGui.QComboBox()
-        self.mode_select.addItems(['GCaMP/RFP', 'GCaMP/iso', 'GCaMP/RFP_dif'])
+        self.mode_select.addItems(['2 colour continuous', '1 colour time div.', '2 colour time div.'])
+        index = self.mode_select.findText(config.default_mode, QtCore.Qt.MatchFixedString)
+        if index >= 0:
+            self.mode_select.setCurrentIndex(index)
         self.rate_label = QtGui.QLabel('Sampling rate (Hz):')
         self.rate_text = QtGui.QLineEdit()
+        self.rate_text.setFixedWidth(40)
 
         self.acquisitiongroup_layout = QtGui.QHBoxLayout()
         self.acquisitiongroup_layout.addWidget(self.mode_label)
@@ -97,8 +100,8 @@ class Photometry_GUI(QtGui.QWidget):
 
         self.current_spinbox_1.setRange(0,100)
         self.current_spinbox_2.setRange(0,100)
-        self.current_spinbox_1.setValue(default_LED_current[0])
-        self.current_spinbox_2.setValue(default_LED_current[1])
+        self.current_spinbox_1.setValue(config.default_LED_current[0])
+        self.current_spinbox_2.setValue(config.default_LED_current[1])
 
         # File groupbox
 
@@ -158,7 +161,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.horizontal_layout_2 = QtGui.QHBoxLayout()
         self.plot_splitter = QtGui.QSplitter(QtCore.Qt.Vertical)
 
-        self.horizontal_layout_1.addWidget(self.gui_groupbox)
+        self.horizontal_layout_1.addWidget(self.status_groupbox)
         self.horizontal_layout_1.addWidget(self.board_groupbox)
         self.horizontal_layout_1.addWidget(self.acquisition_groupbox)
         self.horizontal_layout_1.addWidget(self.current_groupbox)
@@ -192,7 +195,7 @@ class Photometry_GUI(QtGui.QWidget):
 
     def connect(self):
         try:
-            self.board = Photometry_host(self.port_select.currentText())
+            self.board = Acquisition_board(self.port_select.currentText())
             self.select_mode(self.mode_select.currentText())
             self.port_select.setEnabled(False)
             self.acquisition_groupbox.setEnabled(True)
@@ -238,8 +241,6 @@ class Photometry_GUI(QtGui.QWidget):
 
     def select_mode(self, mode):
         self.board.set_mode(mode)
-        self.board.set_LED_current(LED_1_current=self.current_spinbox_1.value(),
-                                   LED_2_current=self.current_spinbox_2.value())
         self.rate_text.setText(str(self.board.sampling_rate))
 
     def rate_text_change(self, text):
@@ -264,7 +265,7 @@ class Photometry_GUI(QtGui.QWidget):
         # Start acquisition.
         self.board.start()
         self.refresh_timer.stop()
-        self.update_timer.start(update_interval)
+        self.update_timer.start(config.update_interval)
         self.running = True
         # Update UI.
         self.board_groupbox.setEnabled(False)
@@ -331,7 +332,6 @@ class Photometry_GUI(QtGui.QWidget):
             self.port_select.clear()
             self.port_select.addItems(sorted(ports))
             self.available_ports = ports
-
 
     # Cleanup.
 

@@ -1,6 +1,9 @@
+# Code which runs on host computer and implements the GUI plot panels.
+# Copyright (c) Thomas Akam 2018.  Licenced under the GNU General Public License v3.
+
 import numpy as np
 import pyqtgraph as pg
-from datetime import timedelta, datetime
+from datetime import datetime
 from pyqtgraph.Qt import QtGui, QtCore
 
 from config import history_dur, triggered_dur
@@ -12,8 +15,8 @@ class Analog_plot():
     def __init__(self):
         self.axis = pg.PlotWidget(title="Analog signal" , labels={'left':'Volts'})
         self.legend = self.axis.addLegend(offset=(10, 10))
-        self.plot_1  = self.axis.plot(pen=pg.mkPen('g'), name='GCaMP'  )
-        self.plot_2  = self.axis.plot(pen=pg.mkPen('r'), name='control')
+        self.plot_1  = self.axis.plot(pen=pg.mkPen('g'), name='analog 1'  )
+        self.plot_2  = self.axis.plot(pen=pg.mkPen('r'), name='analog 2')
         self.axis.setYRange(0, 3.3, padding=0)
         self.axis.setXRange( -history_dur, history_dur*0.02, padding=0)
 
@@ -59,14 +62,14 @@ class Digital_plot():
 
 class Event_triggered_plot():
 
-    def __init__(self):
+    def __init__(self, tau=5):
         self.axis = pg.PlotWidget(title="Event triggered", labels={'left': 'Volts', 'bottom':'Time (seconds)'})
         self.axis.addLegend(offset=(-10, 10))
         self.prev_plot = self.axis.plot(pen=pg.mkPen(pg.hsvColor(0.6, sat=0, alpha=0.3)), name='latest')
         self.ave_plot  = self.axis.plot(pen=pg.mkPen(pg.hsvColor(0.6)), name='average')
         self.axis.addItem(pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen(style=QtCore.Qt.DotLine)))
         self.axis.setXRange(triggered_dur[0], triggered_dur[1], padding=0)
-
+        self.alpha = 1 - np.exp(-1./tau) # Learning rate for update of average trace, tau is time constant.
 
     def reset(self, sampling_rate):
         self.window = (np.array(triggered_dur)*sampling_rate).astype(int)   # Window for event triggered signals (samples [pre, post])
@@ -86,7 +89,7 @@ class Event_triggered_plot():
             if self.average is None: # First acquisition
                 self.average = ev_trig_sig
             else: # Update averaged trace.
-                self.average = 0.8*self.average + 0.2*ev_trig_sig
+                self.average = (1-self.alpha)*self.average + self.alpha*ev_trig_sig
             if i+1 == len(rising_edges): 
                 self.prev_plot.setData(self.x, ev_trig_sig)
                 self.ave_plot.setData(self.x, self.average)
@@ -135,9 +138,3 @@ class Record_clock():
         self.clock_text.setText('')
         self.recording_text.setText('')
         self.start_time = None
-
-
-
-
-
-

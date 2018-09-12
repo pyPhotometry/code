@@ -1,4 +1,5 @@
 # Function for opening pyPhotometry data files in Python.
+# Copyright (c) Thomas Akam 2018.  Licenced under the GNU General Public License v3.
 
 import json
 import numpy as np
@@ -21,8 +22,8 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
     analog_2 = analog[1::2] * volts_per_division[1]
     digital_1 = digital[ ::2]
     digital_2 = digital[1::2]
-    time = np.arange(analog_1.shape[0]) / sampling_rate # Time relative to start of recording (seconds).
-    # Filter signals.
+    time = np.arange(analog_1.shape[0])*1000/sampling_rate # Time relative to start of recording (ms).
+    # Filter signals with specified high and low pass frequencies (Hz).
     if low_pass and high_pass:
         b, a = butter(2, np.array([high_pass, low_pass])/(0.5*sampling_rate), 'bandpass')
     elif low_pass:
