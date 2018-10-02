@@ -29,9 +29,9 @@ class Photometry_GUI(QtGui.QWidget):
         self.refresh_interval = 1000 # Interval to refresh tasks and ports when not running (ms).
         self.available_ports = None
 
-        # GUI groupbox.
+        # GUI status groupbox.
 
-        self.status_groupbox = QtGui.QGroupBox('GUI')
+        self.status_groupbox = QtGui.QGroupBox('GUI status')
 
         self.status_text = QtGui.QLineEdit('Not connected')
         self.status_text.setStyleSheet('background-color:rgb(210, 210, 210);')
