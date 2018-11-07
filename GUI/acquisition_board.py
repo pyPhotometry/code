@@ -26,6 +26,7 @@ class Acquisition_board(Pyboard):
         self.volts_per_division = config.ADC_volts_per_division
         self.running = False
         self.LED_current = [0,0]
+        self.file_type = None
         super().__init__(port, baudrate=115200)
         self.enter_raw_repl() # Reset pyboard.
         self.exec('import photometry_upy') 
@@ -68,13 +69,14 @@ class Acquisition_board(Pyboard):
         self.exec_raw_no_follow('p.start({},{})'.format(self.sampling_rate, self.buffer_size))
         self.running = True
 
-    def record(self, data_dir, subject_ID):
+    def record(self, data_dir, subject_ID, file_type='ppd'):
         '''Open data file and write data header.'''
+        assert file_type in ['csv', 'ppd'], 'Invalid file type'
+        self.file_type = file_type
         date_time = datetime.now()
-        file_name = subject_ID + date_time.strftime('-%Y-%m-%d-%H%M%S') + '.ppd'
+        file_name = subject_ID + date_time.strftime('-%Y-%m-%d-%H%M%S') + '.' + file_type
         file_path = os.path.join(data_dir, file_name)
         if pyperclip: pyperclip.copy(file_name)
-        self.data_file = open(file_path, 'wb')
         header_dict = {'subject_ID': subject_ID,
                        'date_time' : date_time.isoformat(timespec='seconds'),
                        'mode': self.mode,
@@ -82,9 +84,16 @@ class Acquisition_board(Pyboard):
                        'volts_per_division': self.volts_per_division,
                        'LED_current': self.LED_current,
                        'version': config.VERSION}
-        data_header = json.dumps(header_dict).encode()
-        self.data_file.write(len(data_header).to_bytes(2, 'little'))
-        self.data_file.write(data_header)
+        if file_type == 'ppd': # Single binary .ppd file.
+            self.data_file = open(file_path, 'wb')
+            data_header = json.dumps(header_dict).encode()
+            self.data_file.write(len(data_header).to_bytes(2, 'little'))
+            self.data_file.write(data_header)
+        elif file_type == 'csv': # Header in .json file and data in .csv file.
+            with open(os.path.join(data_dir, file_name[:-4] + '.json'), 'w') as headerfile:
+                headerfile.write(json.dumps(header_dict, sort_keys=True, indent=4))
+            self.data_file = open(file_path, 'w')
+            self.data_file.write('Analog1, Analog2, Digital1, Digital2\n')
 
     def stop_recording(self):
         if self.data_file:
@@ -118,5 +127,9 @@ class Acquisition_board(Pyboard):
                 print('Bad checksum')
                 self.serial.reset_input_buffer()
             if self.data_file:
-                self.data_file.write(data.tobytes())
+                if self.file_type == 'ppd': # Binary data file.
+                    self.data_file.write(data.tobytes())
+                else: # CSV data file.
+                    np.savetxt(self.data_file, np.array([ADC1,ADC2,DI1,DI2], dtype=int).T, 
+                               fmt='%d', delimiter=',')
             return ADC1, ADC2, DI1, DI2

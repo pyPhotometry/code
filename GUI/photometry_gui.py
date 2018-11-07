@@ -11,6 +11,17 @@ from acquisition_board import Acquisition_board
 from pyboard import PyboardError
 from plotting import Analog_plot, Digital_plot, Event_triggered_plot, Record_clock
 
+# Utility functions ---------------------------------------------------------------
+
+def set_cbox_item(cbox, item_name):
+    '''Set the selected item on a combobox by passing the item name.  If name is not
+    valid then selected item is not changed.'''
+    index = cbox.findText(item_name, QtCore.Qt.MatchFixedString)
+    if index >= 0:
+        cbox.setCurrentIndex(index)
+
+# Photometry_GUI ------------------------------------------------------------------
+
 class Photometry_GUI(QtGui.QWidget):
 
     def __init__(self, parent=None):
@@ -65,9 +76,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.mode_label = QtGui.QLabel("Mode:")
         self.mode_select = QtGui.QComboBox()
         self.mode_select.addItems(['2 colour continuous', '1 colour time div.', '2 colour time div.'])
-        index = self.mode_select.findText(config.default_mode, QtCore.Qt.MatchFixedString)
-        if index >= 0:
-            self.mode_select.setCurrentIndex(index)
+        set_cbox_item(self.mode_select, config.default_acquisition_mode)
         self.rate_label = QtGui.QLabel('Sampling rate (Hz):')
         self.rate_text = QtGui.QLineEdit()
         self.rate_text.setFixedWidth(40)
@@ -115,6 +124,10 @@ class Photometry_GUI(QtGui.QWidget):
         self.subject_text = QtGui.QLineEdit(self.subject_ID)
         self.subject_text.setFixedWidth(80)
         self.subject_text.setMaxLength(12)
+        self.filetype_label = QtGui.QLabel("File type:")
+        self.filetype_select = QtGui.QComboBox()
+        self.filetype_select.addItems(['ppd','csv'])
+        set_cbox_item(self.filetype_select, config.default_filetype)
 
         self.filegroup_layout = QtGui.QHBoxLayout()
         self.filegroup_layout.addWidget(self.data_dir_label)
@@ -122,6 +135,8 @@ class Photometry_GUI(QtGui.QWidget):
         self.filegroup_layout.addWidget(self.data_dir_button)
         self.filegroup_layout.addWidget(self.subject_label)
         self.filegroup_layout.addWidget(self.subject_text)
+        self.filegroup_layout.addWidget(self.filetype_label)
+        self.filegroup_layout.addWidget(self.filetype_select)
         self.file_groupbox.setLayout(self.filegroup_layout)
 
         self.data_dir_text.textChanged.connect(self.test_data_path)
@@ -217,7 +232,10 @@ class Photometry_GUI(QtGui.QWidget):
             self.status_text.setText('Connection failed')
         except PyboardError:
             self.status_text.setText('Firmware error')
-            self.board.close()
+            try:
+                self.board.close()
+            except AttributeError:
+                pass
 
     def disconnect(self):
         # Disconnect from pyboard.
@@ -278,9 +296,11 @@ class Photometry_GUI(QtGui.QWidget):
 
     def record(self):
         if os.path.isdir(self.data_dir):
-            self.board.record(self.data_dir, self.subject_ID)
+            filetype = self.filetype_select.currentText()
+            self.board.record(self.data_dir, self.subject_ID, filetype)
             self.status_text.setText('Recording')
             self.current_groupbox.setEnabled(False)
+            self.file_groupbox.setEnabled(False)
             self.record_button.setEnabled(False)
             self.subject_text.setEnabled(False)
             self.data_dir_text.setEnabled(False)
@@ -300,6 +320,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.board_groupbox.setEnabled(True)
         self.acquisition_groupbox.setEnabled(True)
         self.current_groupbox.setEnabled(True)
+        self.file_groupbox.setEnabled(True)
         self.start_button.setEnabled(True)
         self.record_button.setEnabled(False)
         self.subject_text.setEnabled(True)

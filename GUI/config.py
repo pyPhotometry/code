@@ -1,4 +1,4 @@
-VERSION = 0.1 # Version number of pyPhotometry.
+VERSION = 0.2 # Version number of pyPhotometry.
 
 # ----------------------------------------------------------------------------------------
 # GUI Config
@@ -10,7 +10,9 @@ update_interval = 5      # Interval between calls to update function (ms).
 
 default_LED_current = [10,10] # Channel [1, 2] (mA).
 
-default_mode = '2 colour continuous' # Default acquisition mode, valid values are: '2 colour continuous', '1 colour time div.', '2 colour time div.'
+default_acquisition_mode = '2 colour continuous' # Valid values: '2 colour continuous', '1 colour time div.', '2 colour time div.'
+
+default_filetype = 'ppd' # Valid values: 'ppd', 'csv'
 
 # ----------------------------------------------------------------------------------------
 # Hardware config.
