@@ -6,11 +6,11 @@ import numpy as np
 from scipy.signal import butter, filtfilt
 
 def import_ppd(file_path, low_pass=20, high_pass=0.01):
-    '''Function to import pyPhotometry binary data files into Python.  Returns
-    a dictionary with the following items. The high_pass and low_pass arguments 
-    determine the frequency in Hz of highpass and lowpass filtering applied to the
-    filtered analog signals. To disable highpass or lowpass filtering set the respective
-    argument to None.
+    '''Function to import pyPhotometry binary data files into Python. The high_pass 
+    and low_pass arguments determine the frequency in Hz of highpass and lowpass 
+    filtering applied to the filtered analog signals. To disable highpass or lowpass
+    filtering set the respective argument to None.  Returns a dictionary with the 
+    following items:
         'subject_ID'    - Subject ID
         'date_time'     - Recording start date and time (ISO 8601 format string)
         'mode'          - Acquisition mode
@@ -25,7 +25,6 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
         'digital_2'     - Digital signal 2
         'time'          - Time of each sample relative to start of recording (ms)
     '''
-
     with open(file_path, 'rb') as f:
         header_size = int.from_bytes(f.read(2), 'little')
         data_header = f.read(header_size)

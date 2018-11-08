@@ -69,9 +69,9 @@ class Photometry_GUI(QtGui.QWidget):
         self.connect_button.clicked.connect(
             lambda: self.disconnect() if self.connected else self.connect())
 
-        # Acquisition groupbox
+        # Settings groupbox
 
-        self.acquisition_groupbox = QtGui.QGroupBox('Acquisition settings')        
+        self.settings_groupbox = QtGui.QGroupBox('Acquisition settings')        
 
         self.mode_label = QtGui.QLabel("Mode:")
         self.mode_select = QtGui.QComboBox()
@@ -81,12 +81,12 @@ class Photometry_GUI(QtGui.QWidget):
         self.rate_text = QtGui.QLineEdit()
         self.rate_text.setFixedWidth(40)
 
-        self.acquisitiongroup_layout = QtGui.QHBoxLayout()
-        self.acquisitiongroup_layout.addWidget(self.mode_label)
-        self.acquisitiongroup_layout.addWidget(self.mode_select)
-        self.acquisitiongroup_layout.addWidget(self.rate_label)
-        self.acquisitiongroup_layout.addWidget(self.rate_text)
-        self.acquisition_groupbox.setLayout(self.acquisitiongroup_layout)
+        self.settingsgroup_layout = QtGui.QHBoxLayout()
+        self.settingsgroup_layout.addWidget(self.mode_label)
+        self.settingsgroup_layout.addWidget(self.mode_select)
+        self.settingsgroup_layout.addWidget(self.rate_label)
+        self.settingsgroup_layout.addWidget(self.rate_text)
+        self.settings_groupbox.setLayout(self.settingsgroup_layout)
 
         self.mode_select.activated[str].connect(self.select_mode)
         self.rate_text.textChanged.connect(self.rate_text_change)
@@ -143,19 +143,19 @@ class Photometry_GUI(QtGui.QWidget):
         self.data_dir_button.clicked.connect(self.select_data_dir)
         self.subject_text.textChanged.connect(self.test_data_path)
 
-        # Controls groupbox
+        # Acquisition groupbox
 
-        self.controls_groupbox = QtGui.QGroupBox('Controls')
+        self.acquisition_groupbox = QtGui.QGroupBox('Acquisition')
 
         self.start_button = QtGui.QPushButton('Start')
         self.record_button = QtGui.QPushButton('Record')
         self.stop_button = QtGui.QPushButton('Stop')
 
-        self.controlsgroup_layout = QtGui.QHBoxLayout()
-        self.controlsgroup_layout.addWidget(self.start_button)
-        self.controlsgroup_layout.addWidget(self.record_button)
-        self.controlsgroup_layout.addWidget(self.stop_button)
-        self.controls_groupbox.setLayout(self.controlsgroup_layout)
+        self.acquisitiongroup_layout = QtGui.QHBoxLayout()
+        self.acquisitiongroup_layout.addWidget(self.start_button)
+        self.acquisitiongroup_layout.addWidget(self.record_button)
+        self.acquisitiongroup_layout.addWidget(self.stop_button)
+        self.acquisition_groupbox.setLayout(self.acquisitiongroup_layout)
 
         self.start_button.clicked.connect(self.start)
         self.record_button.clicked.connect(self.record)
@@ -178,10 +178,10 @@ class Photometry_GUI(QtGui.QWidget):
 
         self.horizontal_layout_1.addWidget(self.status_groupbox)
         self.horizontal_layout_1.addWidget(self.board_groupbox)
-        self.horizontal_layout_1.addWidget(self.acquisition_groupbox)
+        self.horizontal_layout_1.addWidget(self.settings_groupbox)
         self.horizontal_layout_1.addWidget(self.current_groupbox)
         self.horizontal_layout_2.addWidget(self.file_groupbox)
-        self.horizontal_layout_2.addWidget(self.controls_groupbox)
+        self.horizontal_layout_2.addWidget(self.acquisition_groupbox)
         self.plot_splitter.addWidget(self.analog_plot.axis)
         self.plot_splitter.addWidget(self.digital_plot.axis)
         self.plot_splitter.addWidget(self.event_triggered_plot.axis)
@@ -213,10 +213,10 @@ class Photometry_GUI(QtGui.QWidget):
             self.board = Acquisition_board(self.port_select.currentText())
             self.select_mode(self.mode_select.currentText())
             self.port_select.setEnabled(False)
-            self.acquisition_groupbox.setEnabled(True)
+            self.settings_groupbox.setEnabled(True)
             self.current_groupbox.setEnabled(True)
             self.file_groupbox.setEnabled(True)
-            self.controls_groupbox.setEnabled(True)
+            self.acquisition_groupbox.setEnabled(True)
             self.stop_button.setEnabled(False)
             self.record_button.setEnabled(False)
             self.connect_button.setText('Disconnect')
@@ -241,10 +241,10 @@ class Photometry_GUI(QtGui.QWidget):
         # Disconnect from pyboard.
         if self.board: self.board.close()
         self.board = None
-        self.acquisition_groupbox.setEnabled(False)
+        self.settings_groupbox.setEnabled(False)
         self.current_groupbox.setEnabled(False)
         self.file_groupbox.setEnabled(False)
-        self.controls_groupbox.setEnabled(False)
+        self.acquisition_groupbox.setEnabled(False)
         self.port_select.setEnabled(True)
         self.connect_button.setText('Connect')
         self.status_text.setText('Not connected')
@@ -287,7 +287,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.running = True
         # Update UI.
         self.board_groupbox.setEnabled(False)
-        self.acquisition_groupbox.setEnabled(False)
+        self.settings_groupbox.setEnabled(False)
         self.start_button.setEnabled(False)
         if self.test_data_path():
             self.record_button.setEnabled(True)
@@ -318,7 +318,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.stop_button.setEnabled(False)
         self.board.serial.reset_input_buffer()
         self.board_groupbox.setEnabled(True)
-        self.acquisition_groupbox.setEnabled(True)
+        self.settings_groupbox.setEnabled(True)
         self.current_groupbox.setEnabled(True)
         self.file_groupbox.setEnabled(True)
         self.start_button.setEnabled(True)
