@@ -23,6 +23,8 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
         'analog_2_filt' - Filtered analog signal 2 (volts)
         'digital_1'     - Digital signal 1
         'digital_2'     - Digital signal 2
+        'pulse_times_1' - Times of rising edges on digital input 1 (ms).
+        'pulse_times_2' - Times of rising edges on digital input 2 (ms).
         'time'          - Time of each sample relative to start of recording (ms)
     '''
     with open(file_path, 'rb') as f:
@@ -34,8 +36,8 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
     volts_per_division = header_dict['volts_per_division']
     sampling_rate = header_dict['sampling_rate']
     # Extract signals.
-    analog  = data >> 1       # Analog signal is most significant 15 bits.
-    digital = (data & 1) == 1 # Digital signal is least significant bit.
+    analog  = data >> 1                     # Analog signal is most significant 15 bits.
+    digital = ((data & 1) == 1).astype(int) # Digital signal is least significant bit.
     # Alternating samples are signals 1 and 2.
     analog_1 = analog[ ::2] * volts_per_division[0]
     analog_2 = analog[1::2] * volts_per_division[1]
@@ -54,6 +56,9 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
         analog_2_filt = filtfilt(b, a, analog_2)
     else:
         analog_1_filt = analog_2_filt = None
+    # Extract rising edges for digital inputs.
+    pulse_times_1 = (1+np.where(np.diff(digital_1) == 1)[0])*1000/sampling_rate
+    pulse_times_2 = (1+np.where(np.diff(digital_2) == 1)[0])*1000/sampling_rate
     # Return signals + header information as a dictionary.
     data_dict = {'analog_1'      : analog_1,
                  'analog_2'      : analog_2,
@@ -61,6 +66,8 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
                  'analog_2_filt' : analog_2_filt,
                  'digital_1'     : digital_1,
                  'digital_2'     : digital_2,
+                 'pulse_times_1' : pulse_times_1,
+                 'pulse_times_2' : pulse_times_2,
                  'time'          : time}
     data_dict.update(header_dict)
     return data_dict
