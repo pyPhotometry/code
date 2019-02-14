@@ -30,7 +30,7 @@ class Acquisition_board(Pyboard):
         self.enter_raw_repl() # Reset pyboard.
         self.exec('import photometry_upy') 
         self.exec('p = photometry_upy.Photometry()')
-        self.volts_per_division = self.eval('p.volts_per_division')
+        self.volts_per_division = eval(self.eval('p.volts_per_division').decode())
  
     def set_mode(self, mode):
         # Set control channel mode.
