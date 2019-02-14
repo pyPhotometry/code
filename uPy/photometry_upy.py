@@ -6,11 +6,14 @@ import pyb
 import gc
 from array import array
 
+from hardware_config import pins, LED_calibration, ADC_volts_per_division
+
 class Photometry():
 
-    def __init__(self, pins, LED_calibration):
+    def __init__(self):
         self.LED_slope  = LED_calibration['slope']
         self.LED_offset = LED_calibration['offset']
+        self.volts_per_division = ADC_volts_per_division
         self.ADC1 = pyb.ADC(pins['analog_1'])
         self.ADC2 = pyb.ADC(pins['analog_2'])
         self.DI1  = pyb.Pin(pins['digital_1'], pyb.Pin.IN, pyb.Pin.PULL_DOWN)

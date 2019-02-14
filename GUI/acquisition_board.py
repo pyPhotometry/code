@@ -23,15 +23,14 @@ class Acquisition_board(Pyboard):
         '''Open connection to pyboard and instantiate Photometry class on pyboard with
         provided parameters.'''
         self.data_file = None
-        self.volts_per_division = config.ADC_volts_per_division
         self.running = False
         self.LED_current = [0,0]
         self.file_type = None
         super().__init__(port, baudrate=115200)
         self.enter_raw_repl() # Reset pyboard.
         self.exec('import photometry_upy') 
-        self.exec("p = photometry_upy.Photometry(pins={}, LED_calibration={})"
-                  .format(config.pins, config.LED_calibration))     
+        self.exec('p = photometry_upy.Photometry()')
+        self.volts_per_division = self.eval('p.volts_per_division')
  
     def set_mode(self, mode):
         # Set control channel mode.
