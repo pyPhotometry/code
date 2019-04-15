@@ -8,11 +8,6 @@ import json
 from datetime import datetime
 from time import sleep
 
-try:
-    import pyperclip
-except ImportError:
-    pyperclip = None
-
 from pyboard import Pyboard
 import config
 
@@ -75,7 +70,6 @@ class Acquisition_board(Pyboard):
         date_time = datetime.now()
         file_name = subject_ID + date_time.strftime('-%Y-%m-%d-%H%M%S') + '.' + file_type
         file_path = os.path.join(data_dir, file_name)
-        if pyperclip: pyperclip.copy(file_name)
         header_dict = {'subject_ID': subject_ID,
                        'date_time' : date_time.isoformat(timespec='seconds'),
                        'mode': self.mode,
@@ -93,6 +87,7 @@ class Acquisition_board(Pyboard):
                 headerfile.write(json.dumps(header_dict, sort_keys=True, indent=4))
             self.data_file = open(file_path, 'w')
             self.data_file.write('Analog1, Analog2, Digital1, Digital2\n')
+        return file_name
 
     def stop_recording(self):
         if self.data_file:

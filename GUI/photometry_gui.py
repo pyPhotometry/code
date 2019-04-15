@@ -41,6 +41,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.connected = False
         self.refresh_interval = 1000 # Interval to refresh tasks and ports when not running (ms).
         self.available_ports = None
+        self.clipboard = QtGui.QApplication.clipboard() # Used to copy strings to computer clipboard.
 
         # GUI status groupbox.
 
@@ -299,7 +300,8 @@ class Photometry_GUI(QtGui.QWidget):
     def record(self):
         if os.path.isdir(self.data_dir):
             filetype = self.filetype_select.currentText()
-            self.board.record(self.data_dir, self.subject_ID, filetype)
+            file_name = self.board.record(self.data_dir, self.subject_ID, filetype)
+            self.clipboard.setText(file_name)
             self.status_text.setText('Recording')
             self.current_groupbox.setEnabled(False)
             self.file_groupbox.setEnabled(False)
@@ -371,10 +373,11 @@ class Photometry_GUI(QtGui.QWidget):
         log but otherwise lets program continue to run.'''
         message = 'A error occured.  If you are acquiring data and acquisition has not frozen ' \
                   'then most likely there is no problem. If you are not acquiring data it is '  \
-                  'recommended to close and restart the GUI.\n\n' 
+                  'recommended to close and restart the GUI.  The error traceback has been '     \
+                  'copied to the clipboard.\n\n' 
         exc_str = '\n'.join(traceback.format_exception(ex_type, ex_value, ex_traceback, chain=False))
+        self.clipboard.setText(exc_str)
         QtGui.QMessageBox.question(self, 'Error', message + exc_str, QtGui.QMessageBox.Ok)
-        traceback.print_exception(ex_type, ex_value, ex_traceback)
 
 # Main ----------------------------------------------------------------
 
