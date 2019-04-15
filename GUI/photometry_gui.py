@@ -2,6 +2,8 @@
 # Copyright (c) Thomas Akam 2018.  Licenced under the GNU General Public License v3.
 
 import os
+import sys
+import traceback
 from pyqtgraph.Qt import QtGui, QtCore
 from serial import SerialException
 from serial.tools import list_ports
@@ -362,10 +364,23 @@ class Photometry_GUI(QtGui.QWidget):
         if self.board: self.board.close()
         event.accept()
 
+    # Exception handling.
+
+    def excepthook(self, ex_type, ex_value, ex_traceback):
+        '''Called whenever an uncaught exception occurs, prints exception to 
+        log but otherwise lets program continue to run.'''
+        message = 'A error occured.  If you are acquiring data and acquisition has not frozen ' \
+                  'then most likely there is no problem. If you are not acquiring data it is '  \
+                  'recommended to close and restart the GUI.\n\n' 
+        exc_str = '\n'.join(traceback.format_exception(ex_type, ex_value, ex_traceback, chain=False))
+        QtGui.QMessageBox.question(self, 'Error', message + exc_str, QtGui.QMessageBox.Ok)
+        traceback.print_exception(ex_type, ex_value, ex_traceback)
+
 # Main ----------------------------------------------------------------
 
 if __name__ == '__main__':
     app = QtGui.QApplication([])  # Start QT
     photometry_GUI = Photometry_GUI()
     photometry_GUI.show()
+    sys.excepthook = photometry_GUI.excepthook
     app.exec_()
