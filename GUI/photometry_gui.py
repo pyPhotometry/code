@@ -333,20 +333,31 @@ class Photometry_GUI(QtGui.QWidget):
         self.status_text.setText('Connected')
         self.record_clock.stop()
 
+    def serial_connection_lost(self):
+        if self.running:
+            self.update_timer.stop()
+            self.refresh_timer.start(self.refresh_interval)
+            self.running = False
+            self.board_groupbox.setEnabled(True)
+            self.start_button.setEnabled(True)
+            self.board.stop_recording()
+            self.record_clock.stop()
+        self.disconnect()
+        QtGui.QMessageBox.question(self, 'Error', 'Serial connection lost.', QtGui.QMessageBox.Ok)
+
     # Timer callbacks.
 
     def process_data(self):
         # Called regularly while running, read data from the serial port
         # and update the plot.
-        if self.board:
-            data = self.board.process_data()
-            if data:
-                new_ADC1, new_ADC2, new_DI1, new_DI2 = data
-                # Update plots.
-                self.analog_plot.update(new_ADC1, new_ADC2)
-                self.digital_plot.update(new_DI1, new_DI2)
-                self.event_triggered_plot.update(new_DI1, self.digital_plot, self.analog_plot)
-                self.record_clock.update()
+        data = self.board.process_data()
+        if data:
+            new_ADC1, new_ADC2, new_DI1, new_DI2 = data
+            # Update plots.
+            self.analog_plot.update(new_ADC1, new_ADC2)
+            self.digital_plot.update(new_DI1, new_DI2)
+            self.event_triggered_plot.update(new_DI1, self.digital_plot, self.analog_plot)
+            self.record_clock.update()
 
     def refresh(self):
         # Called regularly while not running, scan serial ports for 
@@ -369,15 +380,18 @@ class Photometry_GUI(QtGui.QWidget):
     # Exception handling.
 
     def excepthook(self, ex_type, ex_value, ex_traceback):
-        '''Called whenever an uncaught exception occurs, prints exception to 
-        log but otherwise lets program continue to run.'''
-        message = 'A error occured.  If you are acquiring data and acquisition has not frozen ' \
-                  'then most likely there is no problem. If you are not acquiring data it is '  \
-                  'recommended to close and restart the GUI.  The error traceback has been '     \
-                  'copied to the clipboard.\n\n' 
-        exc_str = '\n'.join(traceback.format_exception(ex_type, ex_value, ex_traceback, chain=False))
-        self.clipboard.setText(exc_str)
-        QtGui.QMessageBox.question(self, 'Error', message + exc_str, QtGui.QMessageBox.Ok)
+        '''Called when an uncaught exception occurs, shows error message and traceback in dialog.'''
+        ex_str = '\n'.join(traceback.format_exception(ex_type, ex_value, ex_traceback, chain=False))
+        if ex_type == SerialException:
+            self.serial_connection_lost()
+        elif ex_type == ValueError and 'ViewBoxMenu' in ex_str:
+            pass # Bug in pyqtgraph when invalid string entered as axis range limit.
+        else:
+            message = 'A error occured.  If you are recording and acquisition has not frozen the '     \
+                      'error is probably not fatal. Otherwise it is recommended to restart the GUI. '  \
+                      'The error traceback has been copied to the clipboard.\n\n'    
+            self.clipboard.setText(ex_str)
+            QtGui.QMessageBox.question(self, 'Error', message + ex_str, QtGui.QMessageBox.Ok)
 
 # Main ----------------------------------------------------------------
 
