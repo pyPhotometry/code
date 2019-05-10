@@ -23,6 +23,8 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
         'analog_2_filt' - Filtered analog signal 2 (volts)
         'digital_1'     - Digital signal 1
         'digital_2'     - Digital signal 2
+        'pulse_inds_1'  - Locations of rising edges on digital input 1 (samples).
+        'pulse_inds_2'  - Locations of rising edges on digital input 2 (samples).
         'pulse_times_1' - Times of rising edges on digital input 1 (ms).
         'pulse_times_2' - Times of rising edges on digital input 2 (ms).
         'time'          - Time of each sample relative to start of recording (ms)
@@ -57,8 +59,10 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
     else:
         analog_1_filt = analog_2_filt = None
     # Extract rising edges for digital inputs.
-    pulse_times_1 = (1+np.where(np.diff(digital_1) == 1)[0])*1000/sampling_rate
-    pulse_times_2 = (1+np.where(np.diff(digital_2) == 1)[0])*1000/sampling_rate
+    pulse_inds_1 = 1+np.where(np.diff(digital_1) == 1)[0]
+    pulse_inds_2 = 1+np.where(np.diff(digital_2) == 1)[0]
+    pulse_times_1 = pulse_inds_1*1000/sampling_rate
+    pulse_times_2 = pulse_inds_2*1000/sampling_rate
     # Return signals + header information as a dictionary.
     data_dict = {'analog_1'      : analog_1,
                  'analog_2'      : analog_2,
@@ -66,6 +70,8 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
                  'analog_2_filt' : analog_2_filt,
                  'digital_1'     : digital_1,
                  'digital_2'     : digital_2,
+                 'pulse_inds_1'  : pulse_inds_1,
+                 'pulse_inds_2'  : pulse_inds_2,
                  'pulse_times_1' : pulse_times_1,
                  'pulse_times_2' : pulse_times_2,
                  'time'          : time}
