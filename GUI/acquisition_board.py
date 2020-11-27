@@ -8,8 +8,8 @@ import json
 from datetime import datetime
 from time import sleep
 
-from pyboard import Pyboard
-import config
+from GUI.pyboard import Pyboard
+from GUI.config import VERSION
 
 class Acquisition_board(Pyboard):
     '''Class for aquiring data from a micropython photometry system on a host computer.'''
@@ -77,7 +77,7 @@ class Acquisition_board(Pyboard):
                        'sampling_rate': self.sampling_rate,
                        'volts_per_division': self.volts_per_division,
                        'LED_current': self.LED_current,
-                       'version': config.VERSION}
+                       'version': VERSION}
         if file_type == 'ppd': # Single binary .ppd file.
             self.data_file = open(file_path, 'wb')
             data_header = json.dumps(header_dict).encode()
