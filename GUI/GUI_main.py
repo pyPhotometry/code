@@ -29,7 +29,7 @@ class Photometry_GUI(QtGui.QWidget):
     def __init__(self, parent=None):
         super(QtGui.QWidget, self).__init__(parent)
         self.setWindowTitle('pyPhotometry GUI v{}'.format(config.VERSION))
-        self.sizeHint = lambda: QtCore.QSize (900, 1080)
+        self.setGeometry(100, 100, 700, 1080) # Left, top, width, height.
 
         # Variables
 
@@ -100,8 +100,11 @@ class Photometry_GUI(QtGui.QWidget):
 
         self.current_label_1 = QtGui.QLabel('CH1:')
         self.current_spinbox_1 = QtGui.QSpinBox()
+        self.current_spinbox_1.setFixedWidth(50)
+
         self.current_label_2 = QtGui.QLabel('CH2:')
         self.current_spinbox_2 = QtGui.QSpinBox()  
+        self.current_spinbox_2.setFixedWidth(50)
 
         self.currentgroup_layout = QtGui.QHBoxLayout()
         self.currentgroup_layout.addWidget(self.current_label_1)
@@ -166,7 +169,7 @@ class Photometry_GUI(QtGui.QWidget):
 
         # Plots
 
-        self.analog_plot  = Analog_plot()
+        self.analog_plot  = Analog_plot(self)
         self.digital_plot = Digital_plot()
         self.event_triggered_plot = Event_triggered_plot()
 
@@ -185,7 +188,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.horizontal_layout_1.addWidget(self.current_groupbox)
         self.horizontal_layout_2.addWidget(self.file_groupbox)
         self.horizontal_layout_2.addWidget(self.acquisition_groupbox)
-        self.plot_splitter.addWidget(self.analog_plot.axis)
+        self.plot_splitter.addWidget(self.analog_plot)
         self.plot_splitter.addWidget(self.digital_plot.axis)
         self.plot_splitter.addWidget(self.event_triggered_plot.axis)
         self.plot_splitter.setSizes([300,120,200])

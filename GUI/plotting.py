@@ -4,21 +4,45 @@
 import numpy as np
 import pyqtgraph as pg
 from datetime import datetime
-from pyqtgraph.Qt import QtGui, QtCore
+from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
 
 from GUI.config import history_dur, triggered_dur
 
 # Analog_plot ------------------------------------------------------
 
-class Analog_plot():
+class Analog_plot(QtGui.QWidget):
 
-    def __init__(self):
+    def __init__(self, parent=None):
+        super(QtGui.QWidget, self).__init__(parent)
+
+        # Create axis
         self.axis = pg.PlotWidget(title="Analog signal" , labels={'left':'Volts'})
         self.legend = self.axis.addLegend(offset=(10, 10))
         self.plot_1  = self.axis.plot(pen=pg.mkPen('g'), name='analog 1'  )
         self.plot_2  = self.axis.plot(pen=pg.mkPen('r'), name='analog 2')
         self.axis.setYRange(0, 3.3, padding=0)
         self.axis.setXRange( -history_dur, history_dur*0.02, padding=0)
+
+        # Create controls
+        self.AC_checkbox = QtWidgets.QCheckBox('Plot AC coupled')
+        self.AC_checkbox.stateChanged.connect(self.enable_disable_AC_mode)
+        self.offset_label = QtGui.QLabel('Offset channels (mV):')
+        self.offset_spinbox = QtGui.QSpinBox()
+        self.offset_spinbox.setSingleStep(10)
+        self.offset_spinbox.setMaximum(500)
+        self.offset_spinbox.setFixedWidth(50)
+        self.enable_disable_AC_mode()
+        self.controls_layout = QtGui.QHBoxLayout()
+        self.controls_layout.addWidget(self.AC_checkbox)
+        self.controls_layout.addWidget(self.offset_label)
+        self.controls_layout.addWidget(self.offset_spinbox)
+        self.controls_layout.addStretch()
+
+        # Main layout
+        self.vertical_layout = QtGui.QVBoxLayout()
+        self.vertical_layout.addLayout(self.controls_layout)
+        self.vertical_layout.addWidget(self.axis)
+        self.setLayout(self.vertical_layout)
 
     def reset(self, sampling_rate):
         history_length = int(sampling_rate*history_dur)
@@ -31,8 +55,27 @@ class Analog_plot():
             new_ADC2 = 3.3 * new_ADC2 / (1 << 15)
             self.ADC1.update(new_ADC1)
             self.ADC2.update(new_ADC2)
-            self.plot_1.setData(self.x, self.ADC1.history)
-            self.plot_2.setData(self.x, self.ADC2.history)
+            if self.AC_mode: 
+                # Plot signals with mean removed.
+                y1 = self.ADC1.history - np.mean(self.ADC1.history) \
+                     + self.offset_spinbox.value()/1000
+                y2 = self.ADC2.history - np.mean(self.ADC2.history)
+                self.plot_1.setData(self.x, y1)
+                self.plot_2.setData(self.x, y2)
+            else:
+                self.plot_1.setData(self.x, self.ADC1.history)
+                self.plot_2.setData(self.x, self.ADC2.history)
+
+    def enable_disable_AC_mode(self):
+        if self.AC_checkbox.isChecked():
+            self.AC_mode = True
+            self.offset_spinbox.setEnabled(True)
+            self.offset_label.setStyleSheet('color : black')
+            self.axis.enableAutoRange(axis='y')
+        else:
+            self.AC_mode = False
+            self.offset_spinbox.setEnabled(False)
+            self.offset_label.setStyleSheet('color : gray')
 
 # Digital_plot ------------------------------------------------------
 
