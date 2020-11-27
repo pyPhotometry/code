@@ -55,12 +55,13 @@ class Acquisition_board(Pyboard):
     def set_sampling_rate(self, sampling_rate):
         self.sampling_rate = int(min(sampling_rate, self.max_rate))
         self.buffer_size = max(2, int(self.sampling_rate // 40) * 2)
-        self.serial_chunk_size = (self.buffer_size+2)*2
+        self.serial_chunk_size = (self.buffer_size+3)*2
         return self.sampling_rate
 
     def start(self):
         '''Start data aquistion and streaming on the pyboard.'''
         self.exec_raw_no_follow('p.start({},{})'.format(self.sampling_rate, self.buffer_size))
+        self.chunk_number = 0 # Number of data chunks recieved from board, modulo 2**16.
         self.running = True
 
     def record(self, data_dir, subject_ID, file_type='ppd'):
@@ -103,27 +104,42 @@ class Acquisition_board(Pyboard):
         self.running = False
 
     def process_data(self):
-        '''Read a chunk of data from the serial line, extract signals and check end bytes.
-        and check sum are correct.'''
+        '''Read a chunk of data from the serial line, check data integrity, extract signals,
+        save signals to disk if file is open, return signals.'''
         if self.serial.in_waiting > (self.serial_chunk_size):
             chunk = np.frombuffer(self.serial.read(self.serial_chunk_size), dtype=np.dtype('<u2'))
-            data = chunk[:-2]
-            signal  = data >> 1        # Analog signal is most significant 15 bits.
-            digital = (data % 2) == 1  # Digital signal is least significant bit.
-            # Alternating samples are signals 1 and 2.
-            ADC1 = signal[ ::2]
-            ADC2 = signal[1::2]
-            DI1 = digital[ ::2]
-            DI2 = digital[1::2]
-            if not chunk[-1] == 0:
-                print('Bad end bytes')
-            if not (sum(data) & 0xffff) == chunk[-2]: 
+            data = chunk[:-3]
+            checksum_OK  = chunk[-2] == (sum(data) & 0xffff)
+            end_bytes_OK = chunk[-1] == 0
+            if not checksum_OK:
                 print('Bad checksum')
+            if not end_bytes_OK:
+                print('Bad end bytes')
+            if not checksum_OK and not end_bytes_OK:
+                # Chunk read by computer not aligned with that send by board.
                 self.serial.reset_input_buffer()
-            if self.data_file:
-                if self.file_type == 'ppd': # Binary data file.
-                    self.data_file.write(data.tobytes())
-                else: # CSV data file.
-                    np.savetxt(self.data_file, np.array([ADC1,ADC2,DI1,DI2], dtype=int).T, 
-                               fmt='%d', delimiter=',')
-            return ADC1, ADC2, DI1, DI2
+            else:
+                # check whether any chunks have been skipped, this can occur following an input buffer reset.
+                self.chunk_number = (self.chunk_number + 1) & 0xffff
+                n_skipped_chunks = np.int16(chunk[-3] - self.chunk_number) # rollover safe subtraction.
+                if not n_skipped_chunks == 0:
+                    print(f'skipped chunks:{n_skipped_chunks}')
+                if n_skipped_chunks > 0: # Prepend data with zeros to replace skipped chunks.
+                    skip_pad = np.zeros(self.buffer_size*n_skipped_chunks, dtype=np.dtype('<u2'))
+                    data = np.hstack([skip_pad, data])
+                    self.chunk_number = (self.chunk_number + n_skipped_chunks) & 0xffff
+                # Extract signals.
+                signal  = data >> 1        # Analog signal is most significant 15 bits.
+                digital = (data % 2) == 1  # Digital signal is least significant bit.
+                ADC1 = signal[ ::2]        # Alternating samples are signals 1 and 2.
+                ADC2 = signal[1::2]
+                DI1 = digital[ ::2]
+                DI2 = digital[1::2]
+                # Write data to disk.
+                if self.data_file:
+                    if self.file_type == 'ppd': # Binary data file.
+                        self.data_file.write(data.tobytes())
+                    else: # CSV data file.
+                        np.savetxt(self.data_file, np.array([ADC1,ADC2,DI1,DI2], dtype=int).T, 
+                                   fmt='%d', delimiter=',')
+                return ADC1, ADC2, DI1, DI2

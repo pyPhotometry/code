@@ -57,9 +57,9 @@ class Photometry():
         # Start acquisition, stream data to computer, wait for ctrl+c over serial to stop. 
         # Setup sample buffers.
         self.buffer_size = buffer_size
-        self.sample_buffers = (array('H',[0]*(buffer_size+2)), array('H',[0]*(buffer_size+2)))
-        self.buffer_data_mv = (memoryview(self.sample_buffers[0])[:-2], 
-                               memoryview(self.sample_buffers[1])[:-2])      
+        self.sample_buffers = (array('H',[0]*(buffer_size+3)), array('H',[0]*(buffer_size+3)))
+        self.buffer_data_mv = (memoryview(self.sample_buffers[0])[:-3], 
+                               memoryview(self.sample_buffers[1])[:-3])      
         self.sample = 0
         self.baseline = 0
         self.dig_sample = False
@@ -67,6 +67,7 @@ class Photometry():
         self.send_buf  = 1 # Buffer to send data from.
         self.write_ind = 0 # Buffer index to write new data to. 
         self.buffer_ready = False # Set to True when full buffer is ready to send.
+        self.chunk_number = 0 # Number of data chunks sent to computer, modulo 2**16.
         self.running = True
         self.ovs_timer.init(freq=self.oversampling_rate)
         self.usb_serial.setinterrupt(-1) # Disable serial interrupt.
@@ -162,9 +163,9 @@ class Photometry():
     @micropython.native
     def _send_buffer(self):
         # Send full buffer to host computer. Format of serial chunks sent to the computer: 
-        # buffer[:-2] = data, buffer[-2] = checksum, buffer[-1] = 0.
-        if self.usb_serial.any() and self.usb_serial.read(1) == b'\xFF':
-                self.stop()
-        self.sample_buffers[self.send_buf][-2] = sum(self.buffer_data_mv[self.send_buf]) # Checksum
+        # buffer[:-3] = data, buffer[-3] = chunk number, buffer[-2] = checksum, buffer[-1] = 0.
+        self.chunk_number = (self.chunk_number + 1) & 0xffff
+        self.sample_buffers[self.send_buf][-3] = self.chunk_number
+        self.sample_buffers[self.send_buf][-2] = sum(self.buffer_data_mv[self.send_buf]) & 0xffff # Checksum
         self.usb_serial.send(self.sample_buffers[self.send_buf])
         self.buffer_ready = False
