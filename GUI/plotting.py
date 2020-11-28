@@ -1,5 +1,5 @@
 # Code which runs on host computer and implements the GUI plot panels.
-# Copyright (c) Thomas Akam 2018.  Licenced under the GNU General Public License v3.
+# Copyright (c) Thomas Akam 2018-2020.  Licenced under the GNU General Public License v3.
 
 import numpy as np
 import pyqtgraph as pg

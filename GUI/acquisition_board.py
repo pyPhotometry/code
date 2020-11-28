@@ -1,14 +1,16 @@
 # Code which runs on host computer and implements communication with pyboard and saving 
 # data to disk.  
-# Copyright (c) Thomas Akam 2018.  Licenced under the GNU General Public License v3.
+# Copyright (c) Thomas Akam 2018-2020.  Licenced under the GNU General Public License v3.
 
 import os
 import numpy as np
 import json
+import time
+from inspect import getsource
 from datetime import datetime
 from time import sleep
 
-from GUI.pyboard import Pyboard
+from GUI.pyboard import Pyboard, PyboardError
 from GUI.config import VERSION
 
 class Acquisition_board(Pyboard):
@@ -23,10 +25,19 @@ class Acquisition_board(Pyboard):
         self.file_type = None
         super().__init__(port, baudrate=115200)
         self.enter_raw_repl() # Reset pyboard.
-        self.exec('import photometry_upy') 
+        # Transfer firmware if not already on board.
+        self.exec(getsource(_djb2_file))     # Define djb2 hashing function on board.
+        self.exec(getsource(_receive_file))  # Define recieve file function on board.
+        self.transfer_file(os.path.join('uPy', 'photometry_upy.py'))
+        # Import firmware and instantiate photometry class.
+        self.exec('import photometry_upy')
         self.exec('p = photometry_upy.Photometry()')
         self.volts_per_division = eval(self.eval('p.volts_per_division').decode())
  
+    # -----------------------------------------------------------------------
+    # Data acquisition.
+    # -----------------------------------------------------------------------
+
     def set_mode(self, mode):
         # Set control channel mode.
         assert mode in ['2 colour continuous', '1 colour time div.', '2 colour time div.'], \
@@ -143,3 +154,75 @@ class Acquisition_board(Pyboard):
                         np.savetxt(self.data_file, np.array([ADC1,ADC2,DI1,DI2], dtype=int).T, 
                                    fmt='%d', delimiter=',')
                 return ADC1, ADC2, DI1, DI2
+
+    # -----------------------------------------------------------------------
+    # File transfer
+    # -----------------------------------------------------------------------
+
+    def get_file_hash(self, target_path):
+        '''Get the djb2 hash of a file on the pyboard.'''
+        try:
+            file_hash = int(self.eval("_djb2_file('{}')".format(target_path)).decode())
+        except PyboardError: # File does not exist.
+            return -1  
+        return file_hash
+
+    def transfer_file(self, file_path):
+        '''Copy file at file_path to pyboard.'''
+        target_path = os.path.split(file_path)[-1]
+        file_size = os.path.getsize(file_path)
+        file_hash = _djb2_file(file_path)
+        # Try to load file, return once file hash on board matches that on computer.
+        for i in range(10):
+            if file_hash == self.get_file_hash(target_path):
+                return
+            self.exec_raw_no_follow("_receive_file('{}',{})"
+                                    .format(target_path, file_size))
+            with open(file_path, 'rb') as f:
+                while True:
+                    chunk = f.read(512)
+                    if not chunk:
+                        break
+                    self.serial.write(chunk)
+                    response_bytes = self.serial.read(2)
+                    if response_bytes != b'OK':
+                        time.sleep(0.01)
+                        self.serial.reset_input_buffer()
+                        raise PyboardError
+                self.follow(3)
+        # Unable to transfer file.
+        raise PyboardError
+
+# ----------------------------------------------------------------------------------------
+#  Helper functions.
+# ----------------------------------------------------------------------------------------
+
+# djb2 hashing algorithm used to check integrity of transfered files.
+def _djb2_file(file_path):
+    with open(file_path, 'rb') as f:
+        h = 5381
+        while True:
+            c = f.read(4)
+            if not c:
+                break
+            h = ((h << 5) + h + int.from_bytes(c,'little')) & 0xFFFFFFFF           
+    return h
+
+# Used on pyboard for file transfer.
+def _receive_file(file_path, file_size):
+    usb = pyb.USB_VCP()
+    usb.setinterrupt(-1)
+    buf_size = 512
+    buf = bytearray(buf_size)
+    buf_mv = memoryview(buf)
+    bytes_remaining = file_size
+    try:
+        with open(file_path, 'wb') as f:
+            while bytes_remaining > 0:
+                bytes_read = usb.recv(buf, timeout=5)
+                usb.write(b'OK')
+                if bytes_read:
+                    bytes_remaining -= bytes_read
+                    f.write(buf_mv[:bytes_read])
+    except:
+        usb.write(b'ER')

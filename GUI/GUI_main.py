@@ -1,5 +1,5 @@
 # Code which runs on host computer and implements the graphical user interface.
-# Copyright (c) Thomas Akam 2018.  Licenced under the GNU General Public License v3.
+# Copyright (c) Thomas Akam 2018-2020.  Licenced under the GNU General Public License v3.
 
 import os
 import sys
@@ -29,7 +29,7 @@ class Photometry_GUI(QtGui.QWidget):
     def __init__(self, parent=None):
         super(QtGui.QWidget, self).__init__(parent)
         self.setWindowTitle('pyPhotometry GUI v{}'.format(config.VERSION))
-        self.setGeometry(100, 100, 700, 1080) # Left, top, width, height.
+        self.setGeometry(100, 100, 1000, 1080) # Left, top, width, height.
 
         # Variables
 
@@ -237,7 +237,7 @@ class Photometry_GUI(QtGui.QWidget):
         except SerialException:
             self.status_text.setText('Connection failed')
         except PyboardError:
-            self.status_text.setText('Firmware error')
+            self.status_text.setText('Connection failed')
             try:
                 self.board.close()
             except AttributeError:
