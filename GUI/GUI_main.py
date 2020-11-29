@@ -50,6 +50,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.status_text = QtGui.QLineEdit('Not connected')
         self.status_text.setStyleSheet('background-color:rgb(210, 210, 210);')
         self.status_text.setReadOnly(True)
+        self.status_text.setFixedWidth(105)
 
         self.guigroup_layout = QtGui.QHBoxLayout()
         self.guigroup_layout.addWidget(self.status_text)
@@ -62,6 +63,8 @@ class Photometry_GUI(QtGui.QWidget):
         self.port_label = QtGui.QLabel("Serial port:")
         self.port_select = QtGui.QComboBox()
         self.connect_button = QtGui.QPushButton('Connect')
+        self.connect_button.setIcon(QtGui.QIcon("GUI/icons/connect.svg"))
+        self.connect_button.setFixedWidth(110)
 
         self.boardgroup_layout = QtGui.QHBoxLayout()
         self.boardgroup_layout.addWidget(self.port_label)
@@ -124,7 +127,8 @@ class Photometry_GUI(QtGui.QWidget):
 
         self.data_dir_label = QtGui.QLabel("Data dir:")
         self.data_dir_text = QtGui.QLineEdit(self.data_dir)
-        self.data_dir_button = QtGui.QPushButton('...')
+        self.data_dir_button = QtGui.QPushButton('')
+        self.data_dir_button.setIcon(QtGui.QIcon("GUI/icons/folder.svg"))
         self.data_dir_button.setFixedWidth(30)
         self.subject_label = QtGui.QLabel("Subject ID:")
         self.subject_text = QtGui.QLineEdit(self.subject_ID)
@@ -154,8 +158,11 @@ class Photometry_GUI(QtGui.QWidget):
         self.acquisition_groupbox = QtGui.QGroupBox('Acquisition')
 
         self.start_button = QtGui.QPushButton('Start')
+        self.start_button.setIcon(QtGui.QIcon("GUI/icons/play.svg"))
         self.record_button = QtGui.QPushButton('Record')
+        self.record_button.setIcon(QtGui.QIcon("GUI/icons/record.svg"))
         self.stop_button = QtGui.QPushButton('Stop')
+        self.stop_button.setIcon(QtGui.QIcon("GUI/icons/stop.svg"))
 
         self.acquisitiongroup_layout = QtGui.QHBoxLayout()
         self.acquisitiongroup_layout.addWidget(self.start_button)
@@ -226,6 +233,7 @@ class Photometry_GUI(QtGui.QWidget):
             self.stop_button.setEnabled(False)
             self.record_button.setEnabled(False)
             self.connect_button.setText('Disconnect')
+            self.connect_button.setIcon(QtGui.QIcon("GUI/icons/disconnect.svg"))
             self.status_text.setText('Connected')
             self.board.set_LED_current(self.current_spinbox_1.value(),self.current_spinbox_2.value())
             self.current_spinbox_1.valueChanged.connect(
@@ -253,6 +261,7 @@ class Photometry_GUI(QtGui.QWidget):
         self.acquisition_groupbox.setEnabled(False)
         self.port_select.setEnabled(True)
         self.connect_button.setText('Connect')
+        self.connect_button.setIcon(QtGui.QIcon("GUI/icons/connect.svg"))
         self.status_text.setText('Not connected')
         self.connected = False
 
