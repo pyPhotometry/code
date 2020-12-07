@@ -24,16 +24,16 @@ class Analog_plot(QtGui.QWidget):
         self.axis.setXRange( -history_dur, history_dur*0.02, padding=0)
 
         # Create controls
-        self.AC_checkbox = QtWidgets.QCheckBox('Plot AC coupled')
-        self.AC_checkbox.stateChanged.connect(self.enable_disable_AC_mode)
+        self.demean_checkbox = QtWidgets.QCheckBox('De-mean plotted signals')
+        self.demean_checkbox.stateChanged.connect(self.enable_disable_demean_mode)
         self.offset_label = QtGui.QLabel('Offset channels (mV):')
         self.offset_spinbox = QtGui.QSpinBox()
         self.offset_spinbox.setSingleStep(10)
         self.offset_spinbox.setMaximum(500)
         self.offset_spinbox.setFixedWidth(50)
-        self.enable_disable_AC_mode()
+        self.enable_disable_demean_mode()
         self.controls_layout = QtGui.QHBoxLayout()
-        self.controls_layout.addWidget(self.AC_checkbox)
+        self.controls_layout.addWidget(self.demean_checkbox)
         self.controls_layout.addWidget(self.offset_label)
         self.controls_layout.addWidget(self.offset_spinbox)
         self.controls_layout.addStretch()
@@ -66,8 +66,8 @@ class Analog_plot(QtGui.QWidget):
                 self.plot_1.setData(self.x, self.ADC1.history)
                 self.plot_2.setData(self.x, self.ADC2.history)
 
-    def enable_disable_AC_mode(self):
-        if self.AC_checkbox.isChecked():
+    def enable_disable_demean_mode(self):
+        if self.demean_checkbox.isChecked():
             self.AC_mode = True
             self.offset_spinbox.setEnabled(True)
             self.offset_label.setStyleSheet('color : black')
