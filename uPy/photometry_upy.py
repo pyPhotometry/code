@@ -102,10 +102,10 @@ class Photometry():
                     break
                 elif self.recieved_byte == b'\xFD': # Set LED 1 power.
                     self.set_LED_current(
-                        LED_1_current=int.from_bytes(self.usb_serial.read(1), 'little'))
+                        LED_1_current=int.from_bytes(self.usb_serial.read(2), 'little'))
                 elif self.recieved_byte == b'\xFE': # Set LED 2 power.
                     self.set_LED_current(
-                        LED_2_current=int.from_bytes(self.usb_serial.read(1), 'little'))      
+                        LED_2_current=int.from_bytes(self.usb_serial.read(2), 'little'))      
         self.stop()
 
     def stop(self):

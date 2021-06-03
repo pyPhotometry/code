@@ -57,9 +57,9 @@ class Acquisition_board(Pyboard):
             self.LED_current[1] = LED_2_current
         if self.running:
             if LED_1_current is not None:
-                self.serial.write(b'\xFD' + LED_1_current.to_bytes(1, 'little'))
+                self.serial.write(b'\xFD' + LED_1_current.to_bytes(2, 'little'))
             if LED_2_current is not None:
-                self.serial.write(b'\xFE' + LED_2_current.to_bytes(1, 'little'))
+                self.serial.write(b'\xFE' + LED_2_current.to_bytes(2, 'little'))
         else:
             self.exec('p.set_LED_current({},{})'.format(LED_1_current, LED_2_current))
 
