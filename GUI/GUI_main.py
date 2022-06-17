@@ -3,7 +3,9 @@
 
 import os
 import sys
+import ctypes
 import traceback
+import logging
 from pyqtgraph.Qt import QtGui, QtCore
 from serial import SerialException
 from serial.tools import list_ports
@@ -12,6 +14,9 @@ import GUI.config as config
 from GUI.acquisition_board import Acquisition_board
 from GUI.pyboard import PyboardError
 from GUI.plotting import Analog_plot, Digital_plot, Event_triggered_plot, Record_clock
+
+if os.name == 'nt': # Needed on windows to get taskbar icon to display correctly.
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(u'pyPhotometry')
 
 # Utility functions ---------------------------------------------------------------
 
@@ -399,11 +404,7 @@ class Photometry_GUI(QtGui.QWidget):
         elif ex_type == ValueError and 'ViewBoxMenu' in ex_str:
             pass # Bug in pyqtgraph when invalid string entered as axis range limit.
         else:
-            message = 'A error occured.  If you are recording and acquisition has not frozen the '     \
-                      'error is probably not fatal. Otherwise it is recommended to restart the GUI. '  \
-                      'The error traceback has been copied to the clipboard.\n\n'    
-            self.clipboard.setText(ex_str)
-            QtGui.QMessageBox.question(self, 'Error', message + ex_str, QtGui.QMessageBox.Ok)
+            logging.error(''.join(traceback.format_exception(ex_type, ex_value, ex_traceback)))
 
 # --------------------------------------------------------------------------------
 # Launch GUI.
@@ -412,6 +413,8 @@ class Photometry_GUI(QtGui.QWidget):
 def launch_GUI():
     '''Launch the pyPhotometry GUI.'''
     app = QtGui.QApplication([])  # Start QT
+    app.setStyle('Fusion')
+    app.setWindowIcon(QtGui.QIcon("gui/icons/main.svg"))
     photometry_GUI = Photometry_GUI()
     photometry_GUI.show()
     sys.excepthook = photometry_GUI.excepthook
