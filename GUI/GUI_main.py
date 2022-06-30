@@ -414,7 +414,7 @@ def launch_GUI():
     '''Launch the pyPhotometry GUI.'''
     app = QtGui.QApplication([])  # Start QT
     app.setStyle('Fusion')
-    app.setWindowIcon(QtGui.QIcon("gui/icons/main.svg"))
+    app.setWindowIcon(QtGui.QIcon("gui/icons/logo.svg"))
     photometry_GUI = Photometry_GUI()
     photometry_GUI.show()
     sys.excepthook = photometry_GUI.excepthook
