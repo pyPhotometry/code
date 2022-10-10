@@ -10,10 +10,10 @@ from GUI.config import history_dur, triggered_dur
 
 # Analog_plot ------------------------------------------------------
 
-class Analog_plot(QtGui.QWidget):
+class Analog_plot(QtWidgets.QWidget):
 
     def __init__(self, parent=None):
-        super(QtGui.QWidget, self).__init__(parent)
+        super(QtWidgets.QWidget, self).__init__(parent)
 
         # Create axis
         self.axis = pg.PlotWidget(title="Analog signal" , labels={'left':'Volts'})
@@ -26,20 +26,20 @@ class Analog_plot(QtGui.QWidget):
         # Create controls
         self.demean_checkbox = QtWidgets.QCheckBox('De-mean plotted signals')
         self.demean_checkbox.stateChanged.connect(self.enable_disable_demean_mode)
-        self.offset_label = QtGui.QLabel('Offset channels (mV):')
-        self.offset_spinbox = QtGui.QSpinBox()
+        self.offset_label = QtWidgets.QLabel('Offset channels (mV):')
+        self.offset_spinbox = QtWidgets.QSpinBox()
         self.offset_spinbox.setSingleStep(10)
         self.offset_spinbox.setMaximum(500)
         self.offset_spinbox.setFixedWidth(50)
         self.enable_disable_demean_mode()
-        self.controls_layout = QtGui.QHBoxLayout()
+        self.controls_layout = QtWidgets.QHBoxLayout()
         self.controls_layout.addWidget(self.demean_checkbox)
         self.controls_layout.addWidget(self.offset_label)
         self.controls_layout.addWidget(self.offset_spinbox)
         self.controls_layout.addStretch()
 
         # Main layout
-        self.vertical_layout = QtGui.QVBoxLayout()
+        self.vertical_layout = QtWidgets.QVBoxLayout()
         self.vertical_layout.addLayout(self.controls_layout)
         self.vertical_layout.addWidget(self.axis)
         self.setLayout(self.vertical_layout)
@@ -158,12 +158,12 @@ class Record_clock():
 
     def __init__(self, axis):
         self.clock_text = pg.TextItem(text='')
-        self.clock_text.setFont(QtGui.QFont('arial',12, QtGui.QFont.Bold))
+        self.clock_text.setFont(QtGui.QFont('arial',12, QtGui.QFont.Weight.Bold))
         axis.getViewBox().addItem(self.clock_text, ignoreBounds=True)
         self.clock_text.setParentItem(axis.getViewBox())
         self.clock_text.setPos(240,10)
         self.recording_text = pg.TextItem(text='', color=(255,0,0))
-        self.recording_text.setFont(QtGui.QFont('arial',12,QtGui.QFont.Bold))
+        self.recording_text.setFont(QtGui.QFont('arial',12,QtGui.QFont.Weight.Bold))
         axis.getViewBox().addItem(self.recording_text, ignoreBounds=True)
         self.recording_text.setParentItem(axis.getViewBox())
         self.recording_text.setPos(110,10)
