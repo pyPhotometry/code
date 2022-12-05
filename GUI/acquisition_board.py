@@ -42,13 +42,13 @@ class Acquisition_board(Pyboard):
 
     def set_mode(self, mode):
         # Set control channel mode.
-        assert mode in ['2 colour continuous', '1 colour time div.', '2 colour time div.'], \
-            "Invalid mode, value values: '2 colour continuous', '1 colour time div.' or '2 colour time div.'."
+        assert mode in ['2 colour continuous', '1 colour time div.', '2 colour time div.','opto-pulse'], \
+            "Invalid mode, value values: '2 colour continuous', '1 colour time div.', '2 colour time div.' or 'opto-pulse'."
         self.mode = mode
         if mode == '2 colour continuous':   # 2 channel GFP/RFP acquisition mode.
             self.max_rate    = hwc.max_sampling_rate['cont']  # Maximum sampling rate allowed for this mode (Hz).
             self.max_LED_current = hwc.max_LED_current['cont']        # Maximum LED current allowed for this mode (mA).
-        elif mode in ('1 colour time div.', '2 colour time div.'): # GCaMP and isosbestic using time division multiplexing.
+        elif mode in ('1 colour time div.', '2 colour time div.','opto-pulse'): # GCaMP and isosbestic using time division multiplexing.
             self.max_rate    = hwc.max_sampling_rate['tdiv']
             self.max_LED_current = hwc.max_LED_current['tdiv'] 
         self.set_sampling_rate(self.max_rate)

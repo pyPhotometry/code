@@ -11,6 +11,7 @@ from serial import SerialException
 from serial.tools import list_ports
 
 import config.GUI_config as GUI_config
+from config.hardware_config import op_current_multipliers
 from GUI.acquisition_board import Acquisition_board
 from GUI.pyboard import PyboardError
 from GUI.plotting import Analog_plot, Digital_plot, Event_triggered_plot, Record_clock
@@ -87,7 +88,7 @@ class Photometry_GUI(QtWidgets.QWidget):
 
         self.mode_label = QtWidgets.QLabel("Mode:")
         self.mode_select = QtWidgets.QComboBox()
-        self.mode_select.addItems(['2 colour continuous', '1 colour time div.', '2 colour time div.'])
+        self.mode_select.addItems(['2 colour continuous', '1 colour time div.', '2 colour time div.','opto-pulse'])
         set_cbox_item(self.mode_select, GUI_config.default_acquisition_mode)
         self.rate_label = QtWidgets.QLabel('Sampling rate (Hz):')
         self.rate_text = QtWidgets.QLineEdit()
@@ -287,8 +288,9 @@ class Photometry_GUI(QtWidgets.QWidget):
         self.rate_text.setText(str(self.board.sampling_rate))
         self.current_spinbox_1.setRange(0,self.board.max_LED_current)
         self.current_spinbox_2.setRange(0,self.board.max_LED_current)
-        if self.current_spinbox_1.value() > self.board.max_LED_current:
-            self.current_spinbox_1.setValue(self.board.max_LED_current)
+        max_LED_1_current = self.board.max_LED_current // max(op_current_multipliers) if mode == 'opto-pulse' else self.board.max_LED_current
+        if self.current_spinbox_1.value() > max_LED_1_current:
+            self.current_spinbox_1.setValue(max_LED_1_current)
             self.board.set_LED_current(LED_1_current=self.board.max_LED_current)
         if self.current_spinbox_2.value() > self.board.max_LED_current:
             self.current_spinbox_2.setValue(self.board.max_LED_current)

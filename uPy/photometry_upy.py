@@ -27,7 +27,7 @@ class Photometry():
 
     def set_mode(self, mode):
         # Set the acquisition mode.
-        assert mode in ['2 colour continuous', '1 colour time div.', '2 colour time div.'], 'Invalid mode.'
+        assert mode in ['2 colour continuous', '1 colour time div.', '2 colour time div.','opto-pulse'], 'Invalid mode.'
         self.mode = mode
         if mode == '2 colour continuous':
             self.oversampling_rate = hwc.oversampling_rate['cont']
@@ -70,6 +70,16 @@ class Photometry():
         self.running = True
         self.ovs_timer.init(freq=self.oversampling_rate)
         self.usb_serial.setinterrupt(-1) # Disable serial interrupt.
+        if self.mode == 'opto-pulse':
+            self.op_active = True
+            self.op_pulse_len = int(2*sampling_rate*hwc.op_pulse_dur/1000) # Length of opto pulse in samples.
+            self.op_ITI_len   = int(2*sampling_rate*hwc.op_IPI_dur/1000)   # Length of inter pulse interval in samples.
+            self.op_n_multipliers = len(hwc.op_current_multipliers)       # Number of different pulse currents multiplers to cycle through.
+            self.op_m = -1 # Counter for which current multiplier to use.
+            self.op_c = 0  # Counter to trigger pulses.
+        else:
+            self.op_active = False
+        self.op_in_pulse = False # Whether current sample is in an opto-pulse.
         gc.collect()
         gc.disable()
         if self.mode == '2 colour continuous':
@@ -125,7 +135,14 @@ class Photometry():
     @micropython.native
     def time_div_ISR(self, t):
         # Interrupt service routine for time division + baseline subtraction acquisition 
-        # modes. 
+        # modes.
+        if self.op_active: # Opto-pulse mode.
+            self.op_c = (self.op_c + 1) % self.op_ITI_len
+            if self.op_c == 0: # Start of opto_pulse.
+                self.op_in_pulse = True
+            elif self.op_c == self.op_pulse_len: # End of opto pulse.
+                self.op_in_pulse = False
+                self.op_m = (self.op_m + 1) % self.op_n_multipliers
         if self.write_ind % 2:   # Odd samples are LED 2 illumination.
             if self.one_color:   # Same analog input read for LEDs 1 and 2.
                 self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
@@ -134,7 +151,10 @@ class Photometry():
             self.LED2.write(self.LED_2_value)
         else:                    # Even samples are LED 1 illumination.
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
-            self.LED1.write(self.LED_1_value)
+            if self.op_in_pulse: # LED current is multiple of baseline value.
+                self.LED1.write(int(self.LED_1_value*hwc.op_current_multipliers[self.op_m]))
+            else:
+                self.LED1.write(self.LED_1_value)
         self.baseline = sum(self.ovs_buffer) >> 3            
         pyb.udelay(300) # Wait before reading ADC (us).
         # Acquire sample, subtract baseline, store in buffer. 
@@ -144,11 +164,23 @@ class Photometry():
             else:
                 self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
             self.LED2.write(0)
-            self.dig_sample = self.DI2.value()
+            if self.op_active: # Digital input 2 is set high on first opto-pulse of each cycle.
+                if self.op_in_pulse and (self.op_m == 0):
+                    self.dig_sample = True
+                else:
+                    self.dig_sample = False
+            else:
+                self.dig_sample = self.DI2.value()
         else:
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
             self.LED1.write(0)
-            self.dig_sample =self.DI1.value()
+            if self.op_active:
+                if self.op_in_pulse: # Digital input 1 is set high on every opto-pulse.
+                    self.dig_sample = True
+                else:
+                    self.dig_sample = False
+            else:
+                self.dig_sample = self.DI1.value()
         self.sample = sum(self.ovs_buffer) >> 3
         self.sample = max(self.sample - self.baseline, 0)
         self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.dig_sample

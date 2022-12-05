@@ -18,3 +18,11 @@ max_LED_current = {'cont': 100, # Maximum LED current in continous and time divi
 
 oversampling_rate = {'cont': 3e5, # Rate at which ADC samples are aquired for oversampling.
                      'tdiv': 256e3}
+
+# Opto-pulse settings.
+
+op_current_multipliers = [0,1,2,3,4,5] # Multiples of set current to cycle through.
+
+op_pulse_dur = 200 # Duration of current pulse (ms).
+
+op_IPI_dur = 10000 # Inter pulse interval (ms). 
