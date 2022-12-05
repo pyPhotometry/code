@@ -11,7 +11,9 @@ from datetime import datetime
 from time import sleep
 
 from GUI.pyboard import Pyboard, PyboardError
-from GUI.config import VERSION
+from config.GUI_config import VERSION
+
+from config import hardware_config as hwc
 
 class Acquisition_board(Pyboard):
     '''Class for aquiring data from a micropython photometry system on a host computer.'''
@@ -29,10 +31,10 @@ class Acquisition_board(Pyboard):
         self.exec(getsource(_djb2_file))     # Define djb2 hashing function on board.
         self.exec(getsource(_receive_file))  # Define recieve file function on board.
         self.transfer_file(os.path.join('uPy', 'photometry_upy.py'))
+        self.transfer_file(os.path.join('config', 'hardware_config.py'))
         # Import firmware and instantiate photometry class.
         self.exec('import photometry_upy')
         self.exec('p = photometry_upy.Photometry()')
-        self.volts_per_division = eval(self.eval('p.volts_per_division').decode())
  
     # -----------------------------------------------------------------------
     # Data acquisition.
@@ -44,16 +46,20 @@ class Acquisition_board(Pyboard):
             "Invalid mode, value values: '2 colour continuous', '1 colour time div.' or '2 colour time div.'."
         self.mode = mode
         if mode == '2 colour continuous':   # 2 channel GFP/RFP acquisition mode.
-            self.max_rate = 1000  # Maximum sampling rate allowed for this mode.
+            self.max_rate    = hwc.max_sampling_rate['cont']  # Maximum sampling rate allowed for this mode (Hz).
+            self.max_LED_current = hwc.max_LED_current['cont']        # Maximum LED current allowed for this mode (mA).
         elif mode in ('1 colour time div.', '2 colour time div.'): # GCaMP and isosbestic using time division multiplexing.
-            self.max_rate = 130   # Hz.
+            self.max_rate    = hwc.max_sampling_rate['tdiv']
+            self.max_LED_current = hwc.max_LED_current['tdiv'] 
         self.set_sampling_rate(self.max_rate)
         self.exec("p.set_mode('{}')".format(mode))
 
     def set_LED_current(self, LED_1_current=None, LED_2_current=None):
-        if LED_1_current is not None:   
+        if LED_1_current is not None:
+            assert LED_1_current <= self.max_LED_current, 'Specified LED current exceeds hardware_config.max_LED_current'
             self.LED_current[0] = LED_1_current
-        if LED_2_current is not None:   
+        if LED_2_current is not None:
+            assert LED_2_current <= self.max_LED_current, 'Specified LED current exceeds hardware_config.max_LED_current'
             self.LED_current[1] = LED_2_current
         if self.running:
             if LED_1_current is not None:
@@ -86,7 +92,7 @@ class Acquisition_board(Pyboard):
                        'date_time' : date_time.isoformat(timespec='seconds'),
                        'mode': self.mode,
                        'sampling_rate': self.sampling_rate,
-                       'volts_per_division': self.volts_per_division,
+                       'volts_per_division': hwc.ADC_volts_per_division,
                        'LED_current': self.LED_current,
                        'version': VERSION}
         if file_type == 'ppd': # Single binary .ppd file.

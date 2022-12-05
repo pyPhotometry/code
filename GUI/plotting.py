@@ -6,7 +6,7 @@ import pyqtgraph as pg
 from datetime import datetime
 from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
 
-from GUI.config import history_dur, triggered_dur
+from config.GUI_config import history_dur, triggered_dur
 
 # Analog_plot ------------------------------------------------------
 

@@ -10,7 +10,7 @@ from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
 from serial import SerialException
 from serial.tools import list_ports
 
-import GUI.config as config
+import config.GUI_config as GUI_config
 from GUI.acquisition_board import Acquisition_board
 from GUI.pyboard import PyboardError
 from GUI.plotting import Analog_plot, Digital_plot, Event_triggered_plot, Record_clock
@@ -34,7 +34,7 @@ class Photometry_GUI(QtWidgets.QWidget):
     def __init__(self, app, parent=None):
         super(QtWidgets.QWidget, self).__init__(parent)
         self.app = app
-        self.setWindowTitle('pyPhotometry GUI v{}'.format(config.VERSION))
+        self.setWindowTitle('pyPhotometry GUI v{}'.format(GUI_config.VERSION))
         self.setGeometry(100, 100, 1000, 1080) # Left, top, width, height.
 
         # Variables
@@ -88,7 +88,7 @@ class Photometry_GUI(QtWidgets.QWidget):
         self.mode_label = QtWidgets.QLabel("Mode:")
         self.mode_select = QtWidgets.QComboBox()
         self.mode_select.addItems(['2 colour continuous', '1 colour time div.', '2 colour time div.'])
-        set_cbox_item(self.mode_select, config.default_acquisition_mode)
+        set_cbox_item(self.mode_select, GUI_config.default_acquisition_mode)
         self.rate_label = QtWidgets.QLabel('Sampling rate (Hz):')
         self.rate_text = QtWidgets.QLineEdit()
         self.rate_text.setFixedWidth(40)
@@ -122,10 +122,8 @@ class Photometry_GUI(QtWidgets.QWidget):
         self.currentgroup_layout.addWidget(self.current_spinbox_2)
         self.current_groupbox.setLayout(self.currentgroup_layout)
 
-        self.current_spinbox_1.setRange(0,100)
-        self.current_spinbox_2.setRange(0,100)
-        self.current_spinbox_1.setValue(config.default_LED_current[0])
-        self.current_spinbox_2.setValue(config.default_LED_current[1])
+        self.current_spinbox_1.setValue(GUI_config.default_LED_current[0])
+        self.current_spinbox_2.setValue(GUI_config.default_LED_current[1])
 
         # File groupbox
 
@@ -143,7 +141,7 @@ class Photometry_GUI(QtWidgets.QWidget):
         self.filetype_label = QtWidgets.QLabel("File type:")
         self.filetype_select = QtWidgets.QComboBox()
         self.filetype_select.addItems(['ppd','csv'])
-        set_cbox_item(self.filetype_select, config.default_filetype)
+        set_cbox_item(self.filetype_select, GUI_config.default_filetype)
 
         self.filegroup_layout = QtWidgets.QHBoxLayout()
         self.filegroup_layout.addWidget(self.data_dir_label)
@@ -287,6 +285,14 @@ class Photometry_GUI(QtWidgets.QWidget):
     def select_mode(self, mode):
         self.board.set_mode(mode)
         self.rate_text.setText(str(self.board.sampling_rate))
+        self.current_spinbox_1.setRange(0,self.board.max_LED_current)
+        self.current_spinbox_2.setRange(0,self.board.max_LED_current)
+        if self.current_spinbox_1.value() > self.board.max_LED_current:
+            self.current_spinbox_1.setValue(self.board.max_LED_current)
+            self.board.set_LED_current(LED_1_current=self.board.max_LED_current)
+        if self.current_spinbox_2.value() > self.board.max_LED_current:
+            self.current_spinbox_2.setValue(self.board.max_LED_current)
+            self.board.set_LED_current(LED_2_current=self.board.max_LED_current)
 
     def rate_text_change(self, text):
         if text:
@@ -310,7 +316,7 @@ class Photometry_GUI(QtWidgets.QWidget):
         # Start acquisition.
         self.board.start()
         self.refresh_timer.stop()
-        self.update_timer.start(config.update_interval)
+        self.update_timer.start(GUI_config.update_interval)
         self.running = True
         # Update UI.
         self.board_groupbox.setEnabled(False)

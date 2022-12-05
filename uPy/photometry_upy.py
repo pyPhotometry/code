@@ -6,30 +6,17 @@ import pyb
 import gc
 from array import array
 
-# Hardware config.
-
-pins = {'analog_1' : 'X11', # Pyboard Pins used for analog and digital signals.
-        'analog_2' : 'X12',
-        'digital_1': 'Y7' ,
-        'digital_2': 'Y8' }
-
-LED_calibration = {'slope' : 38.15,  # Calibration of DAC values against LED currents.
-                   'offset':  6.26}  # DAC_value = offset + slope * LED_current_mA.
-
-ADC_volts_per_division = [0.00010122, 0.00010122] # Analog signal volts per division for signal [1, 2]
+import hardware_config as hwc
 
 # Photometry class.
 
 class Photometry():
 
     def __init__(self):
-        self.LED_slope  = LED_calibration['slope']
-        self.LED_offset = LED_calibration['offset']
-        self.volts_per_division = ADC_volts_per_division
-        self.ADC1 = pyb.ADC(pins['analog_1'])
-        self.ADC2 = pyb.ADC(pins['analog_2'])
-        self.DI1  = pyb.Pin(pins['digital_1'], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
-        self.DI2  = pyb.Pin(pins['digital_2'], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+        self.ADC1 = pyb.ADC(hwc.pins['analog_1'])
+        self.ADC2 = pyb.ADC(hwc.pins['analog_2'])
+        self.DI1  = pyb.Pin(hwc.pins['digital_1'], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+        self.DI2  = pyb.Pin(hwc.pins['digital_2'], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
         self.LED1 = pyb.DAC(1, bits=12)
         self.LED2 = pyb.DAC(2, bits=12)
         self.ovs_buffer = array('H',[0]*64) # Oversampling buffer
@@ -43,9 +30,9 @@ class Photometry():
         assert mode in ['2 colour continuous', '1 colour time div.', '2 colour time div.'], 'Invalid mode.'
         self.mode = mode
         if mode == '2 colour continuous':
-            self.oversampling_rate = 3e5   # Hz.
+            self.oversampling_rate = hwc.oversampling_rate['cont']
         else:
-            self.oversampling_rate = 256e3 # Hz.
+            self.oversampling_rate = hwc.oversampling_rate['tdiv']
         self.one_color = True if mode == '1 colour time div.' else False
 
     def set_LED_current(self, LED_1_current=None, LED_2_current=None):
@@ -54,14 +41,14 @@ class Photometry():
             if LED_1_current == 0:
                 self.LED_1_value = 0
             else: 
-                self.LED_1_value = int(self.LED_slope*LED_1_current+self.LED_offset)
+                self.LED_1_value = int(hwc.LED_calibration['slope']*LED_1_current+hwc.LED_calibration['offset'])
             if self.running and (self.mode == '2 colour continuous'): 
                 self.LED1.write(self.LED_1_value)
         if LED_2_current is not None:
             if LED_2_current == 0:
                 self.LED_2_value = 0
             else: 
-                self.LED_2_value = int(self.LED_slope*LED_2_current+self.LED_offset)
+                self.LED_2_value = int(hwc.LED_calibration['slope']*LED_2_current+hwc.LED_calibration['offset'])
             if self.running and (self.mode == '2 colour continuous'): 
                 self.LED2.write(self.LED_2_value)
 
