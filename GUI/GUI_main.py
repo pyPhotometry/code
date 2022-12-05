@@ -31,8 +31,9 @@ def set_cbox_item(cbox, item_name):
 
 class Photometry_GUI(QtWidgets.QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, app, parent=None):
         super(QtWidgets.QWidget, self).__init__(parent)
+        self.app = app
         self.setWindowTitle('pyPhotometry GUI v{}'.format(config.VERSION))
         self.setGeometry(100, 100, 1000, 1080) # Left, top, width, height.
 
@@ -228,6 +229,9 @@ class Photometry_GUI(QtWidgets.QWidget):
 
     def connect(self):
         try:
+            self.status_text.setText('Connecting')
+            self.connect_button.setEnabled(False)
+            self.app.processEvents()
             self.board = Acquisition_board(self.port_select.currentText())
             self.select_mode(self.mode_select.currentText())
             self.port_select.setEnabled(False)
@@ -240,6 +244,7 @@ class Photometry_GUI(QtWidgets.QWidget):
             self.connect_button.setText('Disconnect')
             self.connect_button.setIcon(QtGui.QIcon("GUI/icons/disconnect.svg"))
             self.status_text.setText('Connected')
+            self.connect_button.setEnabled(True)
             self.board.set_LED_current(self.current_spinbox_1.value(),self.current_spinbox_2.value())
             self.current_spinbox_1.valueChanged.connect(
                 lambda v:self.board.set_LED_current(LED_1_current=int(v)))
@@ -249,8 +254,10 @@ class Photometry_GUI(QtWidgets.QWidget):
             self.connected = True
         except SerialException:
             self.status_text.setText('Connection failed')
+            self.connect_button.setEnabled(True)
         except PyboardError:
             self.status_text.setText('Connection failed')
+            self.connect_button.setEnabled(True)
             try:
                 self.board.close()
             except AttributeError:
@@ -415,7 +422,7 @@ def launch_GUI():
     app = QtWidgets.QApplication([])  # Start QT
     app.setStyle('Fusion')
     app.setWindowIcon(QtGui.QIcon("gui/icons/logo.svg"))
-    photometry_GUI = Photometry_GUI()
+    photometry_GUI = Photometry_GUI(app)
     photometry_GUI.show()
     sys.excepthook = photometry_GUI.excepthook
     app.exec()
