@@ -286,12 +286,12 @@ class Photometry_GUI(QtWidgets.QWidget):
     def select_mode(self, mode):
         self.board.set_mode(mode)
         self.rate_text.setText(str(self.board.sampling_rate))
-        self.current_spinbox_1.setRange(0,self.board.max_LED_current)
-        self.current_spinbox_2.setRange(0,self.board.max_LED_current)
         max_LED_1_current = self.board.max_LED_current // max(op_current_multipliers) if mode == 'opto-pulse' else self.board.max_LED_current
+        self.current_spinbox_1.setRange(0,max_LED_1_current)
+        self.current_spinbox_2.setRange(0,self.board.max_LED_current)
         if self.current_spinbox_1.value() > max_LED_1_current:
             self.current_spinbox_1.setValue(max_LED_1_current)
-            self.board.set_LED_current(LED_1_current=max_LED_current)
+            self.board.set_LED_current(LED_1_current=max_LED_1_current)
         if self.current_spinbox_2.value() > self.board.max_LED_current:
             self.current_spinbox_2.setValue(self.board.max_LED_current)
             self.board.set_LED_current(LED_2_current=self.board.max_LED_current)
