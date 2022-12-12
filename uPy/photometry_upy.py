@@ -2,9 +2,12 @@
 # the host computer.
 # Copyright (c) Thomas Akam 2018-2020.  Licenced under the GNU General Public License v3.
 
+import micropython
 import pyb
 import gc
 from array import array
+
+micropython.alloc_emergency_exception_buf(100) # Allocate space for error messages raised during interrupt processing.
 
 import hardware_config as hwc
 

@@ -253,9 +253,11 @@ class Photometry_GUI(QtWidgets.QWidget):
         except SerialException:
             self.status_text.setText('Connection failed')
             self.connect_button.setEnabled(True)
+            raise
         except PyboardError:
             self.status_text.setText('Connection failed')
             self.connect_button.setEnabled(True)
+            raise
             try:
                 self.board.close()
             except AttributeError:
@@ -344,7 +346,7 @@ class Photometry_GUI(QtWidgets.QWidget):
             self.data_dir_text.setText('Set valid directory')
             self.data_dir_label.setStyleSheet("color: rgb(255, 0, 0);")
 
-    def stop(self):
+    def stop(self, error=False):
         self.board.stop()
         self.update_timer.stop()
         self.refresh_timer.start(self.refresh_interval)
@@ -360,7 +362,10 @@ class Photometry_GUI(QtWidgets.QWidget):
         self.subject_text.setEnabled(True)
         self.data_dir_text.setEnabled(True)
         self.data_dir_button.setEnabled(True)
-        self.status_text.setText('Connected')
+        if error:
+            self.status_text.setText('Error')
+        else:
+            self.status_text.setText('Connected')
         self.record_clock.stop()
 
     def serial_connection_lost(self):
@@ -380,7 +385,11 @@ class Photometry_GUI(QtWidgets.QWidget):
     def process_data(self):
         # Called regularly while running, read data from the serial port
         # and update the plot.
-        data = self.board.process_data()
+        try:
+            data = self.board.process_data()
+        except PyboardError:
+            self.stop(error=True)
+            raise
         if data:
             new_ADC1, new_ADC2, new_DI1, new_DI2 = data
             # Update plots.

@@ -124,17 +124,19 @@ class Acquisition_board(Pyboard):
         '''Read a chunk of data from the serial line, check data integrity, extract signals,
         save signals to disk if file is open, return signals.'''
         if self.serial.in_waiting > (self.serial_chunk_size):
-            chunk = np.frombuffer(self.serial.read(self.serial_chunk_size), dtype=np.dtype('<u2'))
+            recieved_bytes = self.serial.read(self.serial_chunk_size)
+            chunk = np.frombuffer(recieved_bytes, dtype=np.dtype('<u2'))
             data = chunk[:-3]
             checksum_OK  = chunk[-2] == (sum(data) & 0xffff)
             end_bytes_OK = chunk[-1] == 0
-            if not checksum_OK:
-                print('Bad checksum')
-            if not end_bytes_OK:
-                print('Bad end bytes')
             if not checksum_OK and not end_bytes_OK:
-                # Chunk read by computer not aligned with that send by board.
-                self.serial.reset_input_buffer()
+                if b'\x04' in recieved_bytes or b'u' in recieved_bytes:
+                    # Code on pyboard has crashed.
+                    data_err = (recieved_bytes+self.read_until(2, b'\x04>', timeout=1)).decode()
+                    raise PyboardError(data_err)
+                else:
+                    # Chunk read by computer not aligned with that send by board.
+                    self.serial.reset_input_buffer()
             else:
                 # check whether any chunks have been skipped, this can occur following an input buffer reset.
                 self.chunk_number = (self.chunk_number + 1) & 0xffff
