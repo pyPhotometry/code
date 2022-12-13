@@ -72,7 +72,7 @@ class Acquisition_board(Pyboard):
     def set_sampling_rate(self, sampling_rate):
         self.sampling_rate = int(min(sampling_rate, self.max_rate))
         self.buffer_size = max(2, int(self.sampling_rate // 40) * 2)
-        self.serial_chunk_size = (self.buffer_size+3)*2
+        self.serial_chunk_size = (self.buffer_size+2)*2
         return self.sampling_rate
 
     def start(self):
@@ -123,45 +123,42 @@ class Acquisition_board(Pyboard):
     def process_data(self):
         '''Read a chunk of data from the serial line, check data integrity, extract signals,
         save signals to disk if file is open, return signals.'''
-        if self.serial.in_waiting > (self.serial_chunk_size):
-            recieved_bytes = self.serial.read(self.serial_chunk_size)
-            chunk = np.frombuffer(recieved_bytes, dtype=np.dtype('<u2'))
-            data = chunk[:-3]
-            checksum_OK  = chunk[-2] == (sum(data) & 0xffff)
-            end_bytes_OK = chunk[-1] == 0
-            if not checksum_OK and not end_bytes_OK:
-                if b'\x04' in recieved_bytes or b'u' in recieved_bytes:
-                    # Code on pyboard has crashed.
-                    data_err = (recieved_bytes+self.read_until(2, b'\x04>', timeout=1)).decode()
-                    raise PyboardError(data_err)
-                else:
-                    # Chunk read by computer not aligned with that send by board.
-                    self.serial.reset_input_buffer()
+        unexpected_input = []
+        while self.serial.in_waiting > 0:
+            new_byte = self.serial.read(1)
+            if new_byte == b'\x07': # Start of data chunk.
+                chunk = np.frombuffer(self.serial.read(self.serial_chunk_size), dtype=np.dtype('<u2'))
+                recieved_chunk_number = chunk[0]
+                checksum = chunk[1]
+                data = chunk[2:]
+                if checksum == (sum(data) & 0xffff): # Checksum of data chunk is correct.
+                    self.chunk_number = (self.chunk_number + 1) & 0xffff
+                    n_skipped_chunks = np.int16(recieved_chunk_number - self.chunk_number) # rollover safe subtraction.
+                    if n_skipped_chunks > 0: # Prepend data with zeros to replace skipped chunks.
+                        skip_pad = np.zeros(self.buffer_size*n_skipped_chunks, dtype=np.dtype('<u2'))
+                        data = np.hstack([skip_pad, data])
+                        self.chunk_number = (self.chunk_number + n_skipped_chunks) & 0xffff
+                    # Extract signals.
+                    signal  = data >> 1        # Analog signal is most significant 15 bits.
+                    digital = (data % 2) == 1  # Digital signal is least significant bit.
+                    ADC1 = signal[ ::2]        # Alternating samples are signals 1 and 2.
+                    ADC2 = signal[1::2]
+                    DI1 = digital[ ::2]
+                    DI2 = digital[1::2]
+                    # Write data to disk.
+                    if self.data_file:
+                        if self.file_type == 'ppd': # Binary data file.
+                            self.data_file.write(data.tobytes())
+                        else: # CSV data file.
+                            np.savetxt(self.data_file, np.array([ADC1,ADC2,DI1,DI2], dtype=int).T, 
+                                       fmt='%d', delimiter=',')
+                    return ADC1, ADC2, DI1, DI2
             else:
-                # check whether any chunks have been skipped, this can occur following an input buffer reset.
-                self.chunk_number = (self.chunk_number + 1) & 0xffff
-                n_skipped_chunks = np.int16(chunk[-3] - self.chunk_number) # rollover safe subtraction.
-                if not n_skipped_chunks == 0:
-                    print(f'skipped chunks:{n_skipped_chunks}')
-                if n_skipped_chunks > 0: # Prepend data with zeros to replace skipped chunks.
-                    skip_pad = np.zeros(self.buffer_size*n_skipped_chunks, dtype=np.dtype('<u2'))
-                    data = np.hstack([skip_pad, data])
-                    self.chunk_number = (self.chunk_number + n_skipped_chunks) & 0xffff
-                # Extract signals.
-                signal  = data >> 1        # Analog signal is most significant 15 bits.
-                digital = (data % 2) == 1  # Digital signal is least significant bit.
-                ADC1 = signal[ ::2]        # Alternating samples are signals 1 and 2.
-                ADC2 = signal[1::2]
-                DI1 = digital[ ::2]
-                DI2 = digital[1::2]
-                # Write data to disk.
-                if self.data_file:
-                    if self.file_type == 'ppd': # Binary data file.
-                        self.data_file.write(data.tobytes())
-                    else: # CSV data file.
-                        np.savetxt(self.data_file, np.array([ADC1,ADC2,DI1,DI2], dtype=int).T, 
-                                   fmt='%d', delimiter=',')
-                return ADC1, ADC2, DI1, DI2
+                unexpected_input.append(new_byte)
+                unexpected_bytes = b''.join(unexpected_input[-8:])
+                if unexpected_bytes in (b'\x04Traceba', b'uncaught'): # Code on pyboard has crashed.
+                    data_err = (unexpected_bytes+self.read_until(2, b'\x04>', timeout=1)).decode()
+                    raise PyboardError(data_err)
 
     # -----------------------------------------------------------------------
     # File transfer

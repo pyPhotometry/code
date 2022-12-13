@@ -59,9 +59,10 @@ class Photometry():
         # Start acquisition, stream data to computer, wait for ctrl+c over serial to stop. 
         # Setup sample buffers.
         self.buffer_size = buffer_size
-        self.sample_buffers = (array('H',[0]*(buffer_size+3)), array('H',[0]*(buffer_size+3)))
-        self.buffer_data_mv = (memoryview(self.sample_buffers[0])[:-3], 
-                               memoryview(self.sample_buffers[1])[:-3])      
+        self.sample_buffers = (array('H',[0]*buffer_size), array('H',[0]*buffer_size))
+        self.buffer_data_mv = (memoryview(self.sample_buffers[0]), 
+                               memoryview(self.sample_buffers[1]))      
+        self.chunk_header = array('H',[0,0])
         self.sample = 0
         self.baseline = 0
         self.dig_sample = False
@@ -164,10 +165,13 @@ class Photometry():
 
     @micropython.native
     def _send_buffer(self):
-        # Send full buffer to host computer. Format of serial chunks sent to the computer: 
-        # buffer[:-3] = data, buffer[-3] = chunk number, buffer[-2] = checksum, buffer[-1] = 0.
+        # Send full buffer to host computer. Each chunk of data sent to computer is 
+        # preceded by a 5 byte header containing the byte b'\x07' indicating the 
+        # start of a chunk, then the chunk_number and checksum encoded as 2 byte integers.
         self.chunk_number = (self.chunk_number + 1) & 0xffff
-        self.sample_buffers[self.send_buf][-3] = self.chunk_number
-        self.sample_buffers[self.send_buf][-2] = sum(self.buffer_data_mv[self.send_buf]) & 0xffff # Checksum
+        self.chunk_header[0] = self.chunk_number
+        self.chunk_header[1] = sum(self.buffer_data_mv[self.send_buf]) & 0xffff # Checksum
+        self.usb_serial.write(b'\x07')
+        self.usb_serial.write(self.chunk_header)
         self.usb_serial.send(self.sample_buffers[self.send_buf])
         self.buffer_ready = False
