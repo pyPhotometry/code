@@ -6,6 +6,7 @@ function data_struct = import_ppd(file_path)
 	% Returns a struct with the following fields. 
 	%    'subject_ID'    - Subject ID
 	%    'date_time'     - Recording start date and time (ISO 8601 format string)
+	%    'end_time'      - Recording end date and time (ISO 8601 format string)
 	%    'mode'          - Acquisition mode
 	%    'sampling_rate' - Sampling rate (Hz)
 	%    'LED_current'   - Current for LEDs 1 and 2 (mA)

@@ -13,6 +13,7 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
     following items:
         'subject_ID'    - Subject ID
         'date_time'     - Recording start date and time (ISO 8601 format string)
+        'end_time'      - Recording end date and time (ISO 8601 format string)
         'mode'          - Acquisition mode
         'sampling_rate' - Sampling rate (Hz)
         'LED_current'   - Current for LEDs 1 and 2 (mA)

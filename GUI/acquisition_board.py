@@ -88,27 +88,38 @@ class Acquisition_board(Pyboard):
         date_time = datetime.now()
         file_name = subject_ID + date_time.strftime('-%Y-%m-%d-%H%M%S') + '.' + file_type
         file_path = os.path.join(data_dir, file_name)
-        header_dict = {'subject_ID': subject_ID,
-                       'date_time' : date_time.isoformat(timespec='seconds'),
-                       'mode': self.mode,
-                       'sampling_rate': self.sampling_rate,
-                       'volts_per_division': hwc.ADC_volts_per_division,
-                       'LED_current': self.LED_current,
-                       'version': VERSION}
+        self.header_dict = {
+            'subject_ID': subject_ID,
+            'date_time' : date_time.isoformat(timespec='milliseconds'),
+            'end_time'  : date_time.isoformat(timespec='milliseconds'), # Overwritten on file close.
+            'mode': self.mode,
+            'sampling_rate': self.sampling_rate,
+            'volts_per_division': hwc.ADC_volts_per_division,
+            'LED_current': self.LED_current,
+            'version': VERSION}
         if file_type == 'ppd': # Single binary .ppd file.
             self.data_file = open(file_path, 'wb')
-            data_header = json.dumps(header_dict).encode()
+            data_header = json.dumps(self.header_dict).encode()
             self.data_file.write(len(data_header).to_bytes(2, 'little'))
             self.data_file.write(data_header)
         elif file_type == 'csv': # Header in .json file and data in .csv file.
-            with open(os.path.join(data_dir, file_name[:-4] + '.json'), 'w') as headerfile:
-                headerfile.write(json.dumps(header_dict, sort_keys=True, indent=4))
+            self.json_path = os.path.join(data_dir, file_name[:-4] + '.json')
+            with open(self.json_path, 'w') as headerfile:
+                headerfile.write(json.dumps(self.header_dict, sort_keys=True, indent=4))
             self.data_file = open(file_path, 'w')
             self.data_file.write('Analog1, Analog2, Digital1, Digital2\n')
         return file_name
 
     def stop_recording(self):
         if self.data_file:
+            # Write session end time to file.
+            self.header_dict['end_time'] = datetime.now().isoformat(timespec='milliseconds')
+            if self.file_type == 'ppd': # Overwrite header at start of datafile.
+                self.data_file.seek(2)
+                self.data_file.write(json.dumps(self.header_dict).encode())
+            elif self.file_type == 'csv': # Overwrite seperate json file.
+                with open(self.json_path, 'w') as headerfile:
+                    headerfile.write(json.dumps(self.header_dict, sort_keys=True, indent=4))
             self.data_file.close()
         self.data_file = None
 
