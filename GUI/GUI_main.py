@@ -49,7 +49,6 @@ class Photometry_GUI(QtWidgets.QWidget):
         self.clipboard = QtWidgets.QApplication.clipboard() # Used to copy strings to computer clipboard.
 
         # GUI status groupbox.
-
         self.status_groupbox = QtWidgets.QGroupBox('GUI status')
 
         self.status_text = QtWidgets.QLineEdit('Not connected')
@@ -57,9 +56,15 @@ class Photometry_GUI(QtWidgets.QWidget):
         self.status_text.setReadOnly(True)
         self.status_text.setFixedWidth(105)
 
+        # Trigger button.
+        self.trigger_button = QtWidgets.QPushButton('Trigger', self)
+        self.trigger_button.setIcon(QtGui.QIcon("GUI/icons/trigger.svg"))
+        self.trigger_button.clicked.connect(self.trigger_digital_output)
+
         self.guigroup_layout = QtWidgets.QHBoxLayout()
         self.guigroup_layout.addWidget(self.status_text)
-        self.status_groupbox.setLayout(self.guigroup_layout)  
+        self.guigroup_layout.addWidget(self.trigger_button)
+        self.status_groupbox.setLayout(self.guigroup_layout)
 
         # Board groupbox
 
@@ -349,6 +354,10 @@ class Photometry_GUI(QtWidgets.QWidget):
         self.data_dir_button.setEnabled(True)
         self.status_text.setText('Connected')
         self.record_clock.stop()
+
+    def trigger_digital_output(self):
+        if self.board:
+          self.board.toggle_digital_output()
 
     def serial_connection_lost(self):
         if self.running:
