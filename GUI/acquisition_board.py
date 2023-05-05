@@ -63,9 +63,6 @@ class Acquisition_board(Pyboard):
         else:
             self.exec('p.set_LED_current({},{})'.format(LED_1_current, LED_2_current))
 
-    def toggle_digital_output(self):
-        self.serial.write(b'\xFC')
-
     def set_sampling_rate(self, sampling_rate):
         self.sampling_rate = int(min(sampling_rate, self.max_rate))
         self.buffer_size = max(2, int(self.sampling_rate // 40) * 2)
