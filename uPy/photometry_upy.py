@@ -5,6 +5,7 @@
 import pyb
 import gc
 from array import array
+import utime
 
 # Hardware config.
 
@@ -16,7 +17,7 @@ pins = {'analog_1' : 'X11', # Pyboard Pins used for analog and digital signals.
 LED_calibration = {'slope' : 38.15,  # Calibration of DAC values against LED currents.
                    'offset':  6.26}  # DAC_value = offset + slope * LED_current_mA.
 
-ADC_volts_per_division = [0.00010122, 0.00010122] # Analog signal volts per division for signal [1, 2]
+ADC_volts_per_division = [0.00010122, 10.00010122] # Analog signal volts per division for signal [1, 2]
 
 # Photometry class.
 
@@ -28,8 +29,8 @@ class Photometry():
         self.volts_per_division = ADC_volts_per_division
         self.ADC1 = pyb.ADC(pins['analog_1'])
         self.ADC2 = pyb.ADC(pins['analog_2'])
-        self.DI1  = pyb.Pin(pins['digital_1'], pyb.Pin.OUT) # set the digital pin as an output
-        self.DI2  = pyb.Pin(pins['digital_2'], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+        self.DI1  = pyb.Pin(pins['digital_1'], pyb.Pin.OUT , pyb.Pin.PULL_DOWN)
+        self.DI2  = pyb.Pin(pins['digital_2'], pyb.Pin.OUT, pyb.Pin.PULL_DOWN)
         self.LED1 = pyb.DAC(1, bits=12)
         self.LED2 = pyb.DAC(2, bits=12)
         self.ovs_buffer = array('H',[0]*64) # Oversampling buffer
@@ -37,6 +38,8 @@ class Photometry():
         self.sampling_timer = pyb.Timer(3)
         self.usb_serial = pyb.USB_VCP()
         self.running = False
+
+
 
     def set_mode(self, mode):
         # Set the acquisition mode.
@@ -65,18 +68,22 @@ class Photometry():
             if self.running and (self.mode == '2 colour continuous'): 
                 self.LED2.write(self.LED_2_value)
 
-    def toggle_digital_output(self):
-        self.digital_output_state = not self.digital_output_state
-        if self.digital_output_state:
-            self.digital_1.value(1)  # Set the digital output pin HIGH.
-            pyb.udelay(10000)  # Wait for 10 ms.
-            self.digital_1.value(0)  # Set the digital output pin LOW.
-            self.digital_output_state = False  # Reset the output state.
-        self.dig_sample = self.digital_1.value()
-
     def start(self, sampling_rate, buffer_size):
         # Start acquisition, stream data to computer, wait for ctrl+c over serial to stop. 
         # Setup sample buffers.
+        self.DI1.high() # Light 
+        pyb.delay(1000)
+        self.DI1.low() # Light       
+        self.DI2.high() # MS
+        # This is the duration of the recording. Set to 25 mins (1500*1000ms)
+        pyb.delay(5000) 
+        self.DI2.low() # MS
+        self.DI1.high() # Light 
+        pyb.delay(1000)
+        self.DI1.low() # Light 
+
+    
+
         self.buffer_size = buffer_size
         self.sample_buffers = (array('H',[0]*(buffer_size+3)), array('H',[0]*(buffer_size+3)))
         self.buffer_data_mv = (memoryview(self.sample_buffers[0])[:-3], 
@@ -92,7 +99,6 @@ class Photometry():
         self.running = True
         self.ovs_timer.init(freq=self.oversampling_rate)
         self.usb_serial.setinterrupt(-1) # Disable serial interrupt.
-        self.digital_output_state = False
         gc.collect()
         gc.disable()
         if self.mode == '2 colour continuous':
@@ -104,7 +110,6 @@ class Photometry():
             self.sampling_timer.init(freq=sampling_rate*2)
             self.sampling_timer.callback(self.time_div_ISR)
         while True:
-            self.toggle_digital_output()  
             if self.buffer_ready:
                 self._send_buffer()
             if self.usb_serial.any():
@@ -116,9 +121,7 @@ class Photometry():
                         LED_1_current=int.from_bytes(self.usb_serial.read(2), 'little'))
                 elif self.recieved_byte == b'\xFE': # Set LED 2 power.
                     self.set_LED_current(
-                        LED_2_current=int.from_bytes(self.usb_serial.read(2), 'little'))  
-                #elif self.recieved_byte == b'\xFC': # Toggle digital output signal.
-                    #self.toggle_digital_output()    
+                        LED_2_current=int.from_bytes(self.usb_serial.read(2), 'little'))      
         self.stop()
 
     def stop(self):
@@ -136,7 +139,7 @@ class Photometry():
         # Interrupt service routine for 2 color continous acquisition mode.
         self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer) # Read sample of analog 1.
         self.sample = sum(self.ovs_buffer) >> 3
-        self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.dig_sample
+        self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.DI1.value()
         self.write_ind += 1
         self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer) # Read sample of analog 2.
         self.sample = sum(self.ovs_buffer) >> 3
