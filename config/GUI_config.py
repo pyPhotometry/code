@@ -1,4 +1,4 @@
-VERSION = "0.3.2"  # Version number of pyPhotometry.
+VERSION = "0.3.3"  # Version number of pyPhotometry.
 
 # ----------------------------------------------------------------------------------------
 # GUI Config
