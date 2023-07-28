@@ -111,7 +111,7 @@ class Event_triggered_plot:
         self.axis.addLegend(offset=(-10, 10))
         self.prev_plot = self.axis.plot(pen=pg.mkPen(pg.hsvColor(0.6, sat=0, alpha=0.3)), name="latest")
         self.ave_plot = self.axis.plot(pen=pg.mkPen(pg.hsvColor(0.6)), name="average")
-        self.axis.addItem(pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen(style=QtCore.Qt.DotLine)))
+        self.axis.addItem(pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen(style=QtCore.Qt.PenStyle.DotLine)))
         self.axis.setXRange(triggered_dur[0], triggered_dur[1], padding=0)
         self.alpha = 1 - np.exp(-1.0 / tau)  # Learning rate for update of average trace, tau is time constant.
 

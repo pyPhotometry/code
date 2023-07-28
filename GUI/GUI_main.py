@@ -24,7 +24,7 @@ if os.name == "nt":  # Needed on windows to get taskbar icon to display correctl
 def set_cbox_item(cbox, item_name):
     """Set the selected item on a combobox by passing the item name.  If name is not
     valid then selected item is not changed."""
-    index = cbox.findText(item_name, QtCore.Qt.MatchFixedString)
+    index = cbox.findText(item_name, QtCore.Qt.MatchFlag.MatchFixedString)
     if index >= 0:
         cbox.setCurrentIndex(index)
 
@@ -191,7 +191,7 @@ class Photometry_GUI(QtWidgets.QWidget):
         self.vertical_layout = QtWidgets.QVBoxLayout()
         self.horizontal_layout_1 = QtWidgets.QHBoxLayout()
         self.horizontal_layout_2 = QtWidgets.QHBoxLayout()
-        self.plot_splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        self.plot_splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
 
         self.horizontal_layout_1.addWidget(self.status_groupbox)
         self.horizontal_layout_1.addWidget(self.board_groupbox)
