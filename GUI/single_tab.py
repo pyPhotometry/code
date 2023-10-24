@@ -364,7 +364,7 @@ class Single_tab(QtWidgets.QWidget):
         if data:
             new_ADC1, new_ADC2, new_DI1, new_DI2 = data
             # Update plots.
-            self.analog_plot.update(new_ADC1, new_ADC2)
+            self.analog_plot.update(new_ADC1, new_ADC2, new_DI1, new_DI2)
             self.digital_plot.update(new_DI1, new_DI2)
             self.event_triggered_plot.update(new_DI1, self.digital_plot, self.analog_plot)
             self.record_clock.update()

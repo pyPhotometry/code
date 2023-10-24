@@ -41,6 +41,7 @@ class GUI_main(QtWidgets.QMainWindow):
 
         self.tab_widget.addTab(self.single_tab, "Single board")
         self.tab_widget.addTab(self.multi_tab, "Multi board")
+        self.tab_widget.currentChanged.connect(self.tab_changed)
 
         # Timers
 
@@ -57,6 +58,14 @@ class GUI_main(QtWidgets.QMainWindow):
         self.available_ports = ports
         self.single_tab.refresh()
         self.multi_tab.refresh()
+
+    def tab_changed(self, new_tab_ind):
+        """Called whenever the active tab is changed."""
+        if self.current_tab_ind == 0:
+            self.single_tab.disconnect()
+        elif self.current_tab_ind == 1:
+            self.multi_tab.disconnect()
+        self.current_tab_ind = new_tab_ind
 
     # Exception handling.
 

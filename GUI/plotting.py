@@ -23,6 +23,8 @@ class Analog_plot(QtWidgets.QWidget):
         self.plot_2 = self.axis.plot(pen=pg.mkPen("r"), name="analog 2")
         self.axis.setYRange(0, 3.3, padding=0)
         self.axis.setXRange(-history_dur, history_dur * 0.02, padding=0)
+        self.DI1_pulse_shader = Pulse_shader(self.axis, brush=(0, 0, 225, 80))
+        self.DI2_pulse_shader = Pulse_shader(self.axis, brush=(225, 225, 0, 80))
 
         # Create controls
         self.demean_checkbox = QtWidgets.QCheckBox("De-mean plotted signals")
@@ -50,12 +52,16 @@ class Analog_plot(QtWidgets.QWidget):
         self.ADC1 = Signal_history(history_length)
         self.ADC2 = Signal_history(history_length)
         self.x = np.linspace(-history_dur, 0, history_length)  # X axis for timeseries plots.
+        self.DI1_pulse_shader.reset(history_length)
+        self.DI2_pulse_shader.reset(history_length)
 
-    def update(self, new_ADC1, new_ADC2):
+    def update(self, new_ADC1, new_ADC2, new_DI1, new_DI2):
         new_ADC1 = 3.3 * new_ADC1 / (1 << 15)  # Convert to Volts.
         new_ADC2 = 3.3 * new_ADC2 / (1 << 15)
         self.ADC1.update(new_ADC1)
         self.ADC2.update(new_ADC2)
+        # self.DI1_pulse_shader.update(new_DI1)
+        # self.DI2_pulse_shader.update(new_DI2)
         if self.AC_mode:
             # Plot signals with mean removed.
             y1 = self.ADC1.history - np.mean(self.ADC1.history) + self.offset_spinbox.value() / 1000
@@ -76,6 +82,41 @@ class Analog_plot(QtWidgets.QWidget):
             self.AC_mode = False
             self.offset_spinbox.setEnabled(False)
             self.offset_label.setStyleSheet("color : gray")
+
+
+class Pulse_shader:
+    """Class for plotting pulses as shaded regions on Analog_plot."""
+
+    def __init__(self, axis, brush):
+        self.axis = axis
+        self.pulses = []
+        self.brush = brush
+
+    def reset(self, history_length):
+        self.x = np.linspace(-history_dur, 0, history_length)
+        self.DI = Signal_history(history_length, int)
+        for pulse in self.pulses:
+            self.axis.removeItem(pulse)
+        self.pulses = []
+
+    def update(self, new_DI):
+        self.DI.update(new_DI)
+        pulse_starts = self.x[np.where(np.diff(self.DI.history) == 1)[0] + 1]
+        pulse_ends = self.x[np.where(np.diff(self.DI.history) == -1)[0] + 1]
+        if self.DI.history[0] == 1:
+            pulse_starts = np.hstack([self.x[0], pulse_starts])
+        if self.DI.history[-1] == 1:
+            pulse_ends = np.hstack([pulse_ends, self.x[-1]])
+        for i, (pulse_start, pulse_end) in enumerate(zip(pulse_starts, pulse_ends)):
+            try:  # Update location of existing pulses.
+                self.pulses[i].setRegion([pulse_start, pulse_end])
+            except IndexError:  # Create new pulses.
+                pulse = pg.LinearRegionItem([pulse_start, pulse_end], brush=self.brush, pen=(0, 0, 0, 0), movable=False)
+                self.pulses.append(pulse)
+                self.axis.addItem(pulse)
+        if len(self.pulses) > len(pulse_starts):  # Hide unused pulses.
+            for pulse in self.pulses[len(pulse_starts) :]:
+                pulse.setRegion([1, 1])
 
 
 # Digital_plot ------------------------------------------------------

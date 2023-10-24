@@ -181,6 +181,10 @@ class Multi_tab(QtWidgets.QWidget):
             if box.running:
                 box.process_data()
 
+    def disconnect(self):
+        for box in self.setupboxes:
+            box.disconnect()
+
 
 # ----------------------------------------------------------------------------------------
 #  Setupbox
@@ -427,7 +431,7 @@ class Setupbox(QtWidgets.QGroupBox):
         if data:
             new_ADC1, new_ADC2, new_DI1, new_DI2 = data
             # Update plots.
-            self.analog_plot.update(new_ADC1, new_ADC2)
+            self.analog_plot.update(new_ADC1, new_ADC2, new_DI1, new_DI2)
             self.record_clock.update()
 
     def update_ports(self):
