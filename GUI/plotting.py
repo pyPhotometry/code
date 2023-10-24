@@ -17,6 +17,7 @@ class Analog_plot(QtWidgets.QWidget):
 
         # Create axis
         self.axis = pg.PlotWidget(title="Analog signal", labels={"left": "Volts"})
+        self.axis.setMouseEnabled(x=False, y=False)
         self.legend = self.axis.addLegend(offset=(10, 10))
         self.plot_1 = self.axis.plot(pen=pg.mkPen("g"), name="analog 1")
         self.plot_2 = self.axis.plot(pen=pg.mkPen("r"), name="analog 2")
@@ -83,6 +84,7 @@ class Analog_plot(QtWidgets.QWidget):
 class Digital_plot:
     def __init__(self):
         self.axis = pg.PlotWidget(title="Digital signal", labels={"left": "Level", "bottom": "Time (seconds)"})
+        self.axis.setMouseEnabled(x=False, y=False)
         self.axis.addLegend(offset=(10, 10))
         self.plot_1 = self.axis.plot(pen=pg.mkPen("b"), name="digital 1")
         self.plot_2 = self.axis.plot(pen=pg.mkPen("y"), name="digital 2")
@@ -108,6 +110,7 @@ class Digital_plot:
 class Event_triggered_plot:
     def __init__(self, tau=5):
         self.axis = pg.PlotWidget(title="Event triggered", labels={"left": "Volts", "bottom": "Time (seconds)"})
+        self.axis.setMouseEnabled(x=False, y=False)
         self.axis.addLegend(offset=(-10, 10))
         self.prev_plot = self.axis.plot(pen=pg.mkPen(pg.hsvColor(0.6, sat=0, alpha=0.3)), name="latest")
         self.ave_plot = self.axis.plot(pen=pg.mkPen(pg.hsvColor(0.6)), name="average")
