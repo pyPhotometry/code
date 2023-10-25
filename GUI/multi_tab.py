@@ -168,6 +168,7 @@ class Multi_tab(QtWidgets.QWidget):
         )
 
     def test_data_path(self):
+        self.data_dir = self.data_dir_text.text()
         for box in self.setupboxes:
             box.test_data_path()
 
@@ -397,6 +398,8 @@ class Setupbox(QtWidgets.QGroupBox):
         self.board.serial.reset_input_buffer()
         self.start_button.setEnabled(True)
         self.record_button.setEnabled(False)
+        self.current_spinbox_1.setEnabled(True)
+        self.current_spinbox_2.setEnabled(True)
         self.subject_text.setEnabled(True)
         if error:
             self.status_text.setText("Error")
