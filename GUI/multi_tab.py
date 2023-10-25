@@ -19,7 +19,27 @@ class Multi_tab(QtWidgets.QWidget):
         self.GUI_main = self.parent()
 
         # Variables.
+        self.setupboxes = []
         self.data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+
+        # Config groupbox
+
+        self.config_groupbox = QtWidgets.QGroupBox("Config")
+        self.save_button = QtWidgets.QPushButton("Save")
+        self.save_button.setIcon(QtGui.QIcon("GUI/icons/save.svg"))
+        self.load_button = QtWidgets.QPushButton("Load")
+        self.setups_label = QtWidgets.QLabel("Setups:")
+        self.setups_spinbox = QtWidgets.QSpinBox()
+        self.setups_spinbox.setFixedWidth(50)
+        self.setups_spinbox.setRange(1, 9)
+        self.setups_spinbox.valueChanged.connect(self.add_remove_setups)
+
+        self.configgroup_layout = QtWidgets.QHBoxLayout()
+        self.configgroup_layout.addWidget(self.save_button)
+        self.configgroup_layout.addWidget(self.load_button)
+        self.configgroup_layout.addWidget(self.setups_label)
+        self.configgroup_layout.addWidget(self.setups_spinbox)
+        self.config_groupbox.setLayout(self.configgroup_layout)
 
         # Settings groupbox.
 
@@ -68,31 +88,6 @@ class Multi_tab(QtWidgets.QWidget):
         self.data_dir_text.textChanged.connect(self.test_data_path)
         self.data_dir_button.clicked.connect(self.select_data_dir)
 
-        # Setups groupbox
-
-        self.setups_groupbox = QtWidgets.QGroupBox("Setups")
-        self.add_setup_button = QtWidgets.QPushButton("Add")
-        self.add_setup_button.clicked.connect(self.add_setup)
-        self.remove_setup_button = QtWidgets.QPushButton("remove")
-        self.remove_setup_button.clicked.connect(self.remove_setup)
-
-        self.setupsgroup_layout = QtWidgets.QHBoxLayout()
-        self.setupsgroup_layout.addWidget(self.add_setup_button)
-        self.setupsgroup_layout.addWidget(self.remove_setup_button)
-        self.setups_groupbox.setLayout(self.setupsgroup_layout)
-
-        # Config groupbox
-
-        self.config_groupbox = QtWidgets.QGroupBox("Config")
-        self.save_button = QtWidgets.QPushButton("Save")
-        self.save_button.setIcon(QtGui.QIcon("GUI/icons/save.svg"))
-        self.load_button = QtWidgets.QPushButton("Load")
-
-        self.configgroup_layout = QtWidgets.QHBoxLayout()
-        self.configgroup_layout.addWidget(self.save_button)
-        self.configgroup_layout.addWidget(self.load_button)
-        self.config_groupbox.setLayout(self.configgroup_layout)
-
         # Layout
 
         self.scroll_area = QtWidgets.QScrollArea(parent=self)
@@ -104,16 +99,9 @@ class Multi_tab(QtWidgets.QWidget):
 
         self.grid_layout = QtWidgets.QGridLayout(self)
         self.grid_layout.addWidget(self.config_groupbox, 1, 1)
-        self.grid_layout.addWidget(self.setups_groupbox, 1, 2)
-        self.grid_layout.addWidget(self.settings_groupbox, 1, 3)
-        self.grid_layout.addWidget(self.datadir_groupbox, 1, 4)
-        self.grid_layout.addWidget(self.scroll_area, 2, 1, 1, 4)
-
-        # Setupboxes
-
-        self.setupboxes = []
-        self.add_setup()
-        self.add_setup()
+        self.grid_layout.addWidget(self.settings_groupbox, 1, 2)
+        self.grid_layout.addWidget(self.datadir_groupbox, 1, 3)
+        self.grid_layout.addWidget(self.scroll_area, 2, 1, 1, 3)
 
         # Timers.
 
@@ -121,20 +109,30 @@ class Multi_tab(QtWidgets.QWidget):
         self.update_timer.timeout.connect(self.process_data)
 
         # Initial state
-        self.config_groupbox.setEnabled(False)
+        self.add_setup()
+        self.save_button.setEnabled(False)
+        self.load_button.setEnabled(False)
 
     def add_setup(self):
         self.setupboxes.append(Setupbox(self, ID=len(self.setupboxes)))
         self.boxes_layout.addWidget(self.setupboxes[-1])
+        self.n_setups = len(self.setupboxes)
 
     def remove_setup(self):
         box = self.setupboxes.pop(-1)
         box.setParent(None)
         box.deleteLater()
+        self.n_setups = len(self.setupboxes)
+
+    def add_remove_setups(self, n_setups):
+        while not (self.n_setups == n_setups):
+            if self.n_setups > n_setups:
+                self.remove_setup()
+            elif self.n_setups < n_setups:
+                self.add_setup()
 
     def setup_started(self):
         self.settings_groupbox.setEnabled(False)
-        self.setups_groupbox.setEnabled(False)
         self.datadir_groupbox.setEnabled(False)
         if not self.update_timer.isActive():
             self.update_timer.start(GUI_config.update_interval)
@@ -143,7 +141,6 @@ class Multi_tab(QtWidgets.QWidget):
         if not any([box.running for box in self.setupboxes]):
             self.update_timer.stop()
             self.settings_groupbox.setEnabled(True)
-            self.setups_groupbox.setEnabled(True)
             self.datadir_groupbox.setEnabled(True)
 
     def select_mode(self, mode):
