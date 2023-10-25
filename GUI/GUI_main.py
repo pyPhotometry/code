@@ -31,6 +31,7 @@ class GUI_main(QtWidgets.QMainWindow):
         # Variables
         self.refresh_interval = 1000  # Interval to refresh tasks and ports when not running (ms).
         self.available_ports = []
+        self.current_tab_ind = 0  # Which tab is currently selected.
 
         # Widgets.
         self.tab_widget = QtWidgets.QTabWidget(self)
@@ -66,6 +67,14 @@ class GUI_main(QtWidgets.QMainWindow):
         elif self.current_tab_ind == 1:
             self.multi_tab.disconnect()
         self.current_tab_ind = new_tab_ind
+
+    def closeEvent(self, event):
+        """Called when GUI window is closed."""
+        if self.current_tab_ind == 0:
+            self.single_tab.disconnect()
+        elif self.current_tab_ind == 1:
+            self.multi_tab.disconnect()
+        event.accept()
 
     # Exception handling.
 

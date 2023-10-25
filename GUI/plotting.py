@@ -6,7 +6,7 @@ import pyqtgraph as pg
 from datetime import datetime
 from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
 
-from config.GUI_config import history_dur, triggered_dur
+from config.GUI_config import history_dur, triggered_dur, max_plot_pulses
 
 # Analog_plot ------------------------------------------------------
 
@@ -60,8 +60,8 @@ class Analog_plot(QtWidgets.QWidget):
         new_ADC2 = 3.3 * new_ADC2 / (1 << 15)
         self.ADC1.update(new_ADC1)
         self.ADC2.update(new_ADC2)
-        # self.DI1_pulse_shader.update(new_DI1)
-        # self.DI2_pulse_shader.update(new_DI2)
+        self.DI1_pulse_shader.update(new_DI1)
+        self.DI2_pulse_shader.update(new_DI2)
         if self.AC_mode:
             # Plot signals with mean removed.
             y1 = self.ADC1.history - np.mean(self.ADC1.history) + self.offset_spinbox.value() / 1000
@@ -107,7 +107,8 @@ class Pulse_shader:
             pulse_starts = np.hstack([self.x[0], pulse_starts])
         if self.DI.history[-1] == 1:
             pulse_ends = np.hstack([pulse_ends, self.x[-1]])
-        for i, (pulse_start, pulse_end) in enumerate(zip(pulse_starts, pulse_ends)):
+        pulse_times = list(zip(pulse_starts, pulse_ends))[-max_plot_pulses:]  # Limit number of pulses to show.
+        for i, (pulse_start, pulse_end) in enumerate(pulse_times):
             try:  # Update location of existing pulses.
                 self.pulses[i].setRegion([pulse_start, pulse_end])
             except IndexError:  # Create new pulses.

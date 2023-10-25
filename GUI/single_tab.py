@@ -231,7 +231,9 @@ class Single_tab(QtWidgets.QWidget):
                 pass
 
     def disconnect(self):
-        # Disconnect from pyboard.
+        """Disconnect from pyboard."""
+        if self.running:
+            self.stop()
         if self.board:
             self.board.close()
         self.board = None
@@ -246,7 +248,7 @@ class Single_tab(QtWidgets.QWidget):
         self.connected = False
 
     def test_data_path(self):
-        # Checks whether data dir and subject ID are valid.
+        """Checks whether data dir and subject ID are valid."""
         self.data_dir = self.data_dir_text.text()
         self.subject_ID = self.subject_text.text()
         if self.running and os.path.isdir(self.data_dir) and str(self.subject_ID):
@@ -354,8 +356,7 @@ class Single_tab(QtWidgets.QWidget):
     # Timer callbacks.
 
     def process_data(self):
-        # Called regularly while running, read data from the serial port
-        # and update the plot.
+        """Called regularly while running, read data from the serial port and update the plot."""
         try:
             data = self.board.process_data()
         except PyboardError:
@@ -370,18 +371,7 @@ class Single_tab(QtWidgets.QWidget):
             self.record_clock.update()
 
     def refresh(self):
-        # Called regularly while not running, scan serial ports for
-        # connected boards and update ports list if changed.
+        """Called regularly while not running, scan serial ports for connected boards and update ports list if changed."""
         if self.GUI_main.ports_changed:
             self.port_select.clear()
             self.port_select.addItems(sorted(self.GUI_main.available_ports))
-
-    # Cleanup.
-
-    def closeEvent(self, event):
-        # Called when GUI window is closed.
-        if self.running:
-            self.stop()
-        if self.board:
-            self.board.close()
-        event.accept()

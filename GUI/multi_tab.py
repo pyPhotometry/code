@@ -317,6 +317,8 @@ class Setupbox(QtWidgets.QGroupBox):
 
     def disconnect(self):
         # Disconnect from pyboard.
+        if self.running:
+            self.stop()
         if self.board:
             self.board.close()
         self.board = None
