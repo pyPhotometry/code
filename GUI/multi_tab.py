@@ -205,6 +205,10 @@ class Multi_tab(QtWidgets.QWidget):
                 self.datadir_groupbox.setEnabled(False)
                 if not self.update_timer.isActive():
                     self.update_timer.start(GUI_config.update_interval)
+            if new_status in (Status.MIXED_NOTRUNNING, Status.MIXED_RUNNING):
+                self.controls_groupbox.setEnabled(False)
+            else:
+                self.controls_groupbox.setEnabled(True)
             if new_status == Status.DISCONNECTED:
                 self.control_select.clear()
                 self.control_select.addItems(["Connect"])
@@ -558,6 +562,7 @@ class Setupbox(QtWidgets.QGroupBox):
         self.current_spinbox_1.setEnabled(True)
         self.current_spinbox_2.setEnabled(True)
         self.subject_text.setEnabled(True)
+        self.connect_button.setEnabled(True)
         if error:
             self.status_text.setText("Error")
         else:
