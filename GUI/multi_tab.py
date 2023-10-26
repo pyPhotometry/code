@@ -161,8 +161,11 @@ class Multi_tab(QtWidgets.QWidget):
         self.update_timer.timeout.connect(self.process_data)
 
         # Initial state
+
         self.add_setup()
         self.update_status()
+
+    # Methods to change number of setups.
 
     def add_setup(self):
         self.setupboxes.append(Setupbox(self, ID=len(self.setupboxes)))
@@ -181,6 +184,8 @@ class Multi_tab(QtWidgets.QWidget):
                 self.remove_setup()
             elif self.n_setups < n_setups:
                 self.add_setup()
+
+    # Methods to update the UI
 
     def update_status(self):
         """Called when the status of a setup changes to update the tab status"""
@@ -226,47 +231,49 @@ class Multi_tab(QtWidgets.QWidget):
                 self.control_select.addItems(["Stop"])
         self.status = new_status
 
-    def select_mode(self, mode):
-        for box in self.setupboxes:
-            box.select_mode(mode)
-
     def control_select_changed(self, control):
-        """Update control button icon to match selected function"""
+        """Update control button icon and action to match selected function"""
         if control == "Connect":
             self.control_button.setIcon(QtGui.QIcon("GUI/icons/connect.svg"))
-            self.control_button_action = self.connect_all
+            self.control_button_action = self.connect
         elif control == "Start":
             self.control_button.setIcon(QtGui.QIcon("GUI/icons/play.svg"))
-            self.control_button_action = self.start_all
+            self.control_button_action = self.start
         elif control == "Record":
             self.control_button.setIcon(QtGui.QIcon("GUI/icons/record.svg"))
-            self.control_button_action = self.record_all
+            self.control_button_action = self.record
         elif control == "Stop":
             self.control_button.setIcon(QtGui.QIcon("GUI/icons/stop.svg"))
-            self.control_button_action = self.stop_all
+            self.control_button_action = self.stop
         elif control == "Disconnect":
             self.control_button.setIcon(QtGui.QIcon("GUI/icons/disconnect.svg"))
-            self.control_button_action = self.disconnect_all
+            self.control_button_action = self.disconnect
 
-    def connect_all(self):
+    # Methods to apply operation to all setups.
+
+    def connect(self):
         for box in self.setupboxes:
             box.connect()
 
-    def start_all(self):
+    def start(self):
         for box in self.setupboxes:
             box.start()
 
-    def record_all(self):
+    def record(self):
         for box in self.setupboxes:
             box.record()
 
-    def stop_all(self):
+    def stop(self):
         for box in self.setupboxes:
             box.stop()
 
-    def disconnect_all(self):
+    def disconnect(self):
         for box in self.setupboxes:
             box.disconnect()
+
+    def select_mode(self, mode):
+        for box in self.setupboxes:
+            box.select_mode(mode)
 
     def rate_text_change(self, text):
         if text:
@@ -280,7 +287,10 @@ class Multi_tab(QtWidgets.QWidget):
                     set_rate = box.board.set_sampling_rate(sampling_rate)
                     self.rate_text.setText(str(set_rate))
 
+    # Data path methods.
+
     def select_data_dir(self):
+        """Open a dialog to select the data directory"""
         self.data_dir_text.setText(
             QtWidgets.QFileDialog.getExistingDirectory(self, "Select data folder", self.data_dir)
         )
@@ -289,20 +299,6 @@ class Multi_tab(QtWidgets.QWidget):
         """Test whether all setups have a valid data path."""
         self.data_dir = self.data_dir_text.text()
         return True if all([box.test_data_path() for box in self.setupboxes]) else False
-
-    def refresh(self):
-        if self.GUI_main.ports_changed:
-            for box in self.setupboxes:
-                box.update_ports()
-
-    def process_data(self):
-        for box in self.setupboxes:
-            if box.is_running():
-                box.process_data()
-
-    def disconnect(self):
-        for box in self.setupboxes:
-            box.disconnect()
 
     def get_config(self):
         """Get the configuation of the tab as a Multitab_config object"""
@@ -314,6 +310,8 @@ class Multi_tab(QtWidgets.QWidget):
             file_type=self.filetype_select.currentText(),
             setup_configs=[box.get_config() for box in self.setupboxes],
         )
+
+    # Load and save tab configuration.
 
     def set_config(self, multitab_config):
         """Set the configuration of the tab from a Multitab_config object"""
@@ -337,15 +335,25 @@ class Multi_tab(QtWidgets.QWidget):
             save_file.write(json.dumps(asdict(self.get_config()), sort_keys=True, indent=4))
 
     def load_config(self):
-        loadfilename = QtWidgets.QFileDialog.getOpenFileName(
-            self,
-            "",
-            config_save_dir,
-            ("JSON files (*.json)"),
-        )[0]
+        """Load tab configuration from json file"""
+        loadfilename = QtWidgets.QFileDialog.getOpenFileName(self, "", config_save_dir, ("JSON files (*.json)"))[0]
         with open(loadfilename, "r", encoding="utf-8") as load_file:
             multitab_config = Multitab_config(**json.loads(load_file.read()))
         self.set_config(multitab_config)
+
+    # Timer callbacks
+
+    def refresh(self):
+        """Called regularly when no setups are running"""
+        if self.GUI_main.ports_changed:
+            for box in self.setupboxes:
+                box.update_ports()
+
+    def process_data(self):
+        """Called regularly while setups are running to process new data."""
+        for box in self.setupboxes:
+            if box.is_running():
+                box.process_data()
 
 
 # ----------------------------------------------------------------------------------------
@@ -440,9 +448,10 @@ class Setupbox(QtWidgets.QGroupBox):
         self.disconnect()  # Set initial state as disconnected.
         self.update_ports()
 
-    # Button and box functions -------------------------------------------
+    # Button and box methods
 
     def connect(self):
+        """Connect to a pyboard."""
         try:
             self.status_text.setText("Connecting")
             self.connect_button.setEnabled(False)
@@ -496,34 +505,9 @@ class Setupbox(QtWidgets.QGroupBox):
         self.record_button.setEnabled(False)
         self.stop_button.setEnabled(False)
 
-    def test_data_path(self):
-        """Checks whether data dir and subject ID are valid."""
-        self.subject_ID = self.subject_text.text()
-        if self.status == Status.RUNNING and os.path.isdir(self.multi_tab.data_dir) and str(self.subject_ID):
-            self.record_button.setEnabled(True)
-            return True
-        else:
-            self.record_button.setEnabled(False)
-            return False
-
-    def select_mode(self, mode):
-        if self.board:
-            self.board.set_mode(mode)
-            self.multi_tab.rate_text.setText(str(self.board.sampling_rate))
-            self.current_spinbox_1.setRange(0, self.board.max_LED_current)
-            self.current_spinbox_2.setRange(0, self.board.max_LED_current)
-            if self.current_spinbox_1.value() > self.board.max_LED_current:
-                self.current_spinbox_1.setValue(self.board.max_LED_current)
-                self.board.set_LED_current(LED_1_current=self.board.max_LED_current)
-            if self.current_spinbox_2.value() > self.board.max_LED_current:
-                self.current_spinbox_2.setValue(self.board.max_LED_current)
-                self.board.set_LED_current(LED_2_current=self.board.max_LED_current)
-
     def start(self):
         """Start data acqusition"""
-        # Reset plots.
         self.analog_plot.reset(self.board.sampling_rate)
-        # Start acquisition.
         self.board.start()
         self.multi_tab.GUI_main.refresh_timer.stop()
         self.status = Status.RUNNING
@@ -569,18 +553,31 @@ class Setupbox(QtWidgets.QGroupBox):
             self.status_text.setText("Connected")
         self.record_clock.stop()
 
-    def serial_connection_lost(self):
-        if self.is_running():
-            self.update_timer.stop()
-            self.refresh_timer.start(self.refresh_interval)
-            self.board_groupbox.setEnabled(True)
-            self.start_button.setEnabled(True)
-            self.board.stop_recording()
-            self.record_clock.stop()
-        self.disconnect()
-        QtWidgets.QMessageBox.question(
-            self, "Error", "Serial connection lost.", QtWidgets.QMessageBox.StandardButton.Ok
-        )
+    # Configuration
+
+    def test_data_path(self):
+        """Checks whether data dir and subject ID are valid."""
+        self.subject_ID = self.subject_text.text()
+        if self.status == Status.RUNNING and os.path.isdir(self.multi_tab.data_dir) and str(self.subject_ID):
+            self.record_button.setEnabled(True)
+            return True
+        else:
+            self.record_button.setEnabled(False)
+            return False
+
+    def select_mode(self, mode):
+        """Set the acqusition mode."""
+        if self.board:
+            self.board.set_mode(mode)
+            self.multi_tab.rate_text.setText(str(self.board.sampling_rate))
+            self.current_spinbox_1.setRange(0, self.board.max_LED_current)
+            self.current_spinbox_2.setRange(0, self.board.max_LED_current)
+            if self.current_spinbox_1.value() > self.board.max_LED_current:
+                self.current_spinbox_1.setValue(self.board.max_LED_current)
+                self.board.set_LED_current(LED_1_current=self.board.max_LED_current)
+            if self.current_spinbox_2.value() > self.board.max_LED_current:
+                self.current_spinbox_2.setValue(self.board.max_LED_current)
+                self.board.set_LED_current(LED_2_current=self.board.max_LED_current)
 
     def get_config(self):
         """Return the current configuration of the Setupbox as a Setup_config object"""
@@ -618,10 +615,24 @@ class Setupbox(QtWidgets.QGroupBox):
             self.record_clock.update()
 
     def update_ports(self):
+        """Update available ports in port_select combobox."""
         self.port_select.clear()
         self.port_select.addItems(sorted(self.multi_tab.GUI_main.available_ports))
 
     # Cleanup.
+
+    def serial_connection_lost(self):
+        if self.is_running():
+            self.update_timer.stop()
+            self.refresh_timer.start(self.refresh_interval)
+            self.board_groupbox.setEnabled(True)
+            self.start_button.setEnabled(True)
+            self.board.stop_recording()
+            self.record_clock.stop()
+        self.disconnect()
+        QtWidgets.QMessageBox.question(
+            self, "Error", "Serial connection lost.", QtWidgets.QMessageBox.StandardButton.Ok
+        )
 
     def closeEvent(self, event):
         # Called when GUI window is closed.
