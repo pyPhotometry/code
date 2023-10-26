@@ -1,6 +1,9 @@
 import os
+import json
 from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
 from serial import SerialException
+from dataclasses import dataclass, asdict
+from typing import List
 
 import config.GUI_config as GUI_config
 from GUI.acquisition_board import Acquisition_board
@@ -11,6 +14,26 @@ from GUI.utility import set_cbox_item
 # ----------------------------------------------------------------------------------------
 #  Multi-tab
 # ----------------------------------------------------------------------------------------
+
+config_save_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments")
+
+
+@dataclass
+class Setup_config:
+    port: str
+    subject_ID: str
+    LED_1_current: int
+    LED_2_current: int
+
+
+@dataclass
+class Multitab_config:
+    n_setups: int
+    mode: str
+    sampling_rate: int
+    data_dir: str
+    file_type: str
+    setup_configs: List[Setup_config]
 
 
 class Multi_tab(QtWidgets.QWidget):
@@ -27,7 +50,9 @@ class Multi_tab(QtWidgets.QWidget):
         self.config_groupbox = QtWidgets.QGroupBox("Config")
         self.save_button = QtWidgets.QPushButton("Save")
         self.save_button.setIcon(QtGui.QIcon("GUI/icons/save.svg"))
+        self.save_button.clicked.connect(self.save_config)
         self.load_button = QtWidgets.QPushButton("Load")
+        self.load_button.clicked.connect(self.load_config)
         self.setups_label = QtWidgets.QLabel("Setups:")
         self.setups_spinbox = QtWidgets.QSpinBox()
         self.setups_spinbox.setFixedWidth(50)
@@ -110,8 +135,6 @@ class Multi_tab(QtWidgets.QWidget):
 
         # Initial state
         self.add_setup()
-        self.save_button.setEnabled(False)
-        self.load_button.setEnabled(False)
 
     def add_setup(self):
         self.setupboxes.append(Setupbox(self, ID=len(self.setupboxes)))
@@ -182,6 +205,49 @@ class Multi_tab(QtWidgets.QWidget):
     def disconnect(self):
         for box in self.setupboxes:
             box.disconnect()
+
+    def get_config(self):
+        """Get the configuation of the tab as a Multitab_config object"""
+        return Multitab_config(
+            n_setups=self.setups_spinbox.value(),
+            mode=self.mode_select.currentText(),
+            sampling_rate=self.rate_text.text(),
+            data_dir=self.data_dir_text.text(),
+            file_type=self.filetype_select.currentText(),
+            setup_configs=[box.get_config() for box in self.setupboxes],
+        )
+
+    def set_config(self, multitab_config):
+        """Set the configuration of the tab from a Multitab_config object"""
+        self.setups_spinbox.setValue(multitab_config.n_setups)
+        self.mode_select.setCurrentIndex(self.mode_select.findText(multitab_config.mode))
+        self.rate_text.setText(multitab_config.sampling_rate)
+        self.data_dir_text.setText(multitab_config.data_dir)
+        self.filetype_select.setCurrentIndex(self.filetype_select.findText(multitab_config.file_type))
+        for box, setup_config_dict in zip(self.setupboxes, multitab_config.setup_configs):
+            box.set_config(Setup_config(**setup_config_dict))
+
+    def save_config(self):
+        """Save tab configuration as a json file"""
+        savefilename = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            "",
+            config_save_dir,
+            ("JSON files (*.json)"),
+        )[0]
+        with open(savefilename, "w", encoding="utf-8") as save_file:
+            save_file.write(json.dumps(asdict(self.get_config()), sort_keys=True, indent=4))
+
+    def load_config(self):
+        loadfilename = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "",
+            config_save_dir,
+            ("JSON files (*.json)"),
+        )[0]
+        with open(loadfilename, "r", encoding="utf-8") as load_file:
+            multitab_config = Multitab_config(**json.loads(load_file.read()))
+        self.set_config(multitab_config)
 
 
 # ----------------------------------------------------------------------------------------
@@ -325,8 +391,6 @@ class Setupbox(QtWidgets.QGroupBox):
         self.connected = False
         self.port_select.setEnabled(True)
         self.subject_text.setEnabled(False)
-        self.current_spinbox_1.setEnabled(False)
-        self.current_spinbox_2.setEnabled(False)
         self.start_button.setEnabled(False)
         self.record_button.setEnabled(False)
         self.stop_button.setEnabled(False)
@@ -419,6 +483,22 @@ class Setupbox(QtWidgets.QGroupBox):
         QtWidgets.QMessageBox.question(
             self, "Error", "Serial connection lost.", QtWidgets.QMessageBox.StandardButton.Ok
         )
+
+    def get_config(self):
+        """Return the current configuration of the Setupbox as a Setup_config object"""
+        return Setup_config(
+            port=self.port_select.currentText(),
+            subject_ID=self.subject_text.text(),
+            LED_1_current=self.current_spinbox_1.value(),
+            LED_2_current=self.current_spinbox_2.value(),
+        )
+
+    def set_config(self, setup_config):
+        """Set the Setupbox configuration from a Setup_config object"""
+        self.port_select.setCurrentIndex(self.port_select.findText(setup_config.port))
+        self.subject_text.setText(setup_config.subject_ID)
+        self.current_spinbox_1.setValue(setup_config.LED_1_current)
+        self.current_spinbox_2.setValue(setup_config.LED_2_current)
 
     # Timer callbacks.
 
