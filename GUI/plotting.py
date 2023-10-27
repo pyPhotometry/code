@@ -1,5 +1,5 @@
 # Code which runs on host computer and implements the GUI plot panels.
-# Copyright (c) Thomas Akam 2018-2020.  Licenced under the GNU General Public License v3.
+# Copyright (c) Thomas Akam 2018-2023.  Licenced under the GNU General Public License v3.
 
 import numpy as np
 import pyqtgraph as pg
@@ -14,28 +14,38 @@ from config.GUI_config import history_dur, triggered_dur, max_plot_pulses
 class Analog_plot(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(QtWidgets.QWidget, self).__init__(parent)
+        self.parent = parent
 
         # Create axis
         self.axis = pg.PlotWidget(title="Analog signal", labels={"left": "Volts"})
         self.axis.setMouseEnabled(x=False, y=False)
+        self.axis.disableAutoRange()
         self.legend = self.axis.addLegend(offset=(10, 10))
         self.plot_1 = self.axis.plot(pen=pg.mkPen("g"), name="analog 1")
         self.plot_2 = self.axis.plot(pen=pg.mkPen("r"), name="analog 2")
         self.axis.setYRange(0, 3.3, padding=0)
         self.axis.setXRange(-history_dur, history_dur * 0.02, padding=0)
-        self.DI1_pulse_shader = Pulse_shader(self.axis, brush=(0, 0, 225, 80))
-        self.DI2_pulse_shader = Pulse_shader(self.axis, brush=(225, 225, 0, 80))
+        self.DI1_shader = Pulse_shader(self.axis, brush=(0, 0, 225, 80))
+        self.DI2_shader = Pulse_shader(self.axis, brush=(225, 225, 0, 80))
 
         # Create controls
+        self.autoscale_button = QtWidgets.QPushButton("Auto-scale")
+        self.autoscale_button.clicked.connect(self.autoscale)
+        self.fullrange_button = QtWidgets.QPushButton("Full range")
+        self.fullrange_button.clicked.connect(lambda x: self.axis.setYRange(0, 3.3, padding=0))
         self.demean_checkbox = QtWidgets.QCheckBox("De-mean plotted signals")
         self.demean_checkbox.stateChanged.connect(self.enable_disable_demean_mode)
         self.offset_label = QtWidgets.QLabel("Offset channels (mV):")
         self.offset_spinbox = QtWidgets.QSpinBox()
+        self.offset_spinbox.valueChanged.connect(lambda x: setattr(self, "autoscale_next_update", True))
         self.offset_spinbox.setSingleStep(10)
         self.offset_spinbox.setMaximum(500)
+        self.offset_spinbox.setValue(100)
         self.offset_spinbox.setFixedWidth(50)
         self.enable_disable_demean_mode()
         self.controls_layout = QtWidgets.QHBoxLayout()
+        self.controls_layout.addWidget(self.fullrange_button)
+        self.controls_layout.addWidget(self.autoscale_button)
         self.controls_layout.addWidget(self.demean_checkbox)
         self.controls_layout.addWidget(self.offset_label)
         self.controls_layout.addWidget(self.offset_spinbox)
@@ -49,39 +59,48 @@ class Analog_plot(QtWidgets.QWidget):
 
     def reset(self, sampling_rate):
         history_length = int(sampling_rate * history_dur)
+        self.autoscale_next_update = False
         self.ADC1 = Signal_history(history_length)
         self.ADC2 = Signal_history(history_length)
         self.x = np.linspace(-history_dur, 0, history_length)  # X axis for timeseries plots.
-        self.DI1_pulse_shader.reset(history_length)
-        self.DI2_pulse_shader.reset(history_length)
+        self.DI1_shader.reset(history_length)
+        self.DI2_shader.reset(history_length)
 
     def update(self, new_ADC1, new_ADC2, new_DI1, new_DI2):
         new_ADC1 = 3.3 * new_ADC1 / (1 << 15)  # Convert to Volts.
         new_ADC2 = 3.3 * new_ADC2 / (1 << 15)
         self.ADC1.update(new_ADC1)
         self.ADC2.update(new_ADC2)
-        self.DI1_pulse_shader.update(new_DI1)
-        self.DI2_pulse_shader.update(new_DI2)
+        self.DI1_shader.update(new_DI1)
+        self.DI2_shader.update(new_DI2)
         if self.AC_mode:
             # Plot signals with mean removed.
-            y1 = self.ADC1.history - np.mean(self.ADC1.history) + self.offset_spinbox.value() / 1000
-            y2 = self.ADC2.history - np.mean(self.ADC2.history)
+            y1 = self.ADC1.history - np.nanmean(self.ADC1.history) + self.offset_spinbox.value() / 1000
+            y2 = self.ADC2.history - np.nanmean(self.ADC2.history)
             self.plot_1.setData(self.x, y1)
             self.plot_2.setData(self.x, y2)
         else:
             self.plot_1.setData(self.x, self.ADC1.history)
             self.plot_2.setData(self.x, self.ADC2.history)
+        if self.autoscale_next_update:
+            self.autoscale()
+            self.autoscale_next_update = False
 
     def enable_disable_demean_mode(self):
         if self.demean_checkbox.isChecked():
             self.AC_mode = True
             self.offset_spinbox.setEnabled(True)
             self.offset_label.setStyleSheet("color : black")
-            self.axis.enableAutoRange(axis="y")
         else:
             self.AC_mode = False
             self.offset_spinbox.setEnabled(False)
             self.offset_label.setStyleSheet("color : gray")
+        if self.parent.is_running():
+            self.autoscale_next_update = True
+
+    def autoscale(self):
+        """Set the axis ranges to show all the data"""
+        self.axis.getPlotItem().getViewBox().autoRange()
 
 
 class Pulse_shader:
@@ -117,40 +136,15 @@ class Pulse_shader:
                 self.axis.addItem(pulse)
         if len(self.pulses) > len(pulse_starts):  # Hide unused pulses.
             for pulse in self.pulses[len(pulse_starts) :]:
-                pulse.setRegion([1, 1])
-
-
-# Digital_plot ------------------------------------------------------
-
-
-class Digital_plot:
-    def __init__(self):
-        self.axis = pg.PlotWidget(title="Digital signal", labels={"left": "Level", "bottom": "Time (seconds)"})
-        self.axis.setMouseEnabled(x=False, y=False)
-        self.axis.addLegend(offset=(10, 10))
-        self.plot_1 = self.axis.plot(pen=pg.mkPen("b"), name="digital 1")
-        self.plot_2 = self.axis.plot(pen=pg.mkPen("y"), name="digital 2")
-        self.axis.setYRange(-0.1, 1.1, padding=0)
-        self.axis.setXRange(-history_dur, history_dur * 0.02, padding=0)
-
-    def reset(self, sampling_rate):
-        history_length = int(sampling_rate * history_dur)
-        self.DI1 = Signal_history(history_length, int)
-        self.DI2 = Signal_history(history_length, int)
-        self.x = np.linspace(-history_dur, 0, history_length)  # X axis for timeseries plots.
-
-    def update(self, new_DI1, new_DI2):
-        self.DI1.update(new_DI1)
-        self.DI2.update(new_DI2)
-        self.plot_1.setData(self.x, self.DI1.history)
-        self.plot_2.setData(self.x, self.DI2.history)
+                pulse.setRegion([0, 0])
 
 
 # Event triggered plot -------------------------------------------------
 
 
 class Event_triggered_plot:
-    def __init__(self, tau=5):
+    def __init__(self, analog_plot, tau=5):
+        self.analog_plot = analog_plot
         self.axis = pg.PlotWidget(title="Event triggered", labels={"left": "Volts", "bottom": "Time (seconds)"})
         self.axis.setMouseEnabled(x=False, y=False)
         self.axis.addLegend(offset=(-10, 10))
@@ -169,14 +163,14 @@ class Event_triggered_plot:
         self.prev_plot.clear()
         self.ave_plot.clear()
 
-    def update(self, new_DI1, digital, analog):
+    def update(self, new_DI1):
         # Update event triggered average plot.
         new_data_len = len(new_DI1)
-        trig_section = digital.DI1.history[-self.window[1] - new_data_len - 1 : -self.window[1]]
+        trig_section = self.analog_plot.DI1_shader.DI.history[-self.window[1] - new_data_len - 1 : -self.window[1]]
         rising_edges = np.where(np.diff(trig_section) == 1)[0]
         for i, edge in enumerate(rising_edges):
             edge_ind = -self.window[1] - new_data_len - 1 + edge  # Position of edge in signal history.
-            ev_trig_sig = analog.ADC1.history[edge_ind + self.window[0] : edge_ind + self.window[1]]
+            ev_trig_sig = self.analog_plot.ADC1.history[edge_ind + self.window[0] : edge_ind + self.window[1]]
             if self.average is None:  # First acquisition
                 self.average = ev_trig_sig
             else:  # Update averaged trace.
@@ -193,7 +187,7 @@ class Signal_history:
     # Buffer to store the recent history of a signal.
 
     def __init__(self, history_length, dtype=float):
-        self.history = np.zeros(history_length, dtype)
+        self.history = np.full(history_length, np.nan if dtype == float else 0, dtype)
 
     def update(self, new_data):
         # Move old data along buffer, store new data samples.

@@ -1,5 +1,5 @@
 # Code which runs on host computer and implements the graphical user interface.
-# Copyright (c) Thomas Akam 2018-2020.  Licenced under the GNU General Public License v3.
+# Copyright (c) Thomas Akam 2018-2023.  Licenced under the GNU General Public License v3.
 
 import os
 import sys

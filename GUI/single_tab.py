@@ -5,7 +5,7 @@ from serial import SerialException
 import config.GUI_config as GUI_config
 from GUI.acquisition_board import Acquisition_board
 from GUI.pyboard import PyboardError
-from GUI.plotting import Analog_plot, Digital_plot, Event_triggered_plot, Record_clock
+from GUI.plotting import Analog_plot, Event_triggered_plot, Record_clock
 from GUI.utility import set_cbox_item
 
 
@@ -154,9 +154,7 @@ class Single_tab(QtWidgets.QWidget):
         # Plots
 
         self.analog_plot = Analog_plot(self)
-        self.digital_plot = Digital_plot()
-        self.event_triggered_plot = Event_triggered_plot()
-
+        self.event_triggered_plot = Event_triggered_plot(self.analog_plot)
         self.record_clock = Record_clock(self.analog_plot.axis)
 
         # Main layout
@@ -173,7 +171,6 @@ class Single_tab(QtWidgets.QWidget):
         self.horizontal_layout_2.addWidget(self.file_groupbox)
         self.horizontal_layout_2.addWidget(self.acquisition_groupbox)
         self.plot_splitter.addWidget(self.analog_plot)
-        self.plot_splitter.addWidget(self.digital_plot.axis)
         self.plot_splitter.addWidget(self.event_triggered_plot.axis)
         self.plot_splitter.setSizes([300, 120, 200])
 
@@ -284,7 +281,6 @@ class Single_tab(QtWidgets.QWidget):
     def start(self):
         # Reset plots.
         self.analog_plot.reset(self.board.sampling_rate)
-        self.digital_plot.reset(self.board.sampling_rate)
         self.event_triggered_plot.reset(self.board.sampling_rate)
         # Start acquisition.
         self.board.start()
@@ -353,6 +349,9 @@ class Single_tab(QtWidgets.QWidget):
             self, "Error", "Serial connection lost.", QtWidgets.QMessageBox.StandardButton.Ok
         )
 
+    def is_running(self):
+        return self.running
+
     # Timer callbacks.
 
     def process_data(self):
@@ -366,8 +365,7 @@ class Single_tab(QtWidgets.QWidget):
             new_ADC1, new_ADC2, new_DI1, new_DI2 = data
             # Update plots.
             self.analog_plot.update(new_ADC1, new_ADC2, new_DI1, new_DI2)
-            self.digital_plot.update(new_DI1, new_DI2)
-            self.event_triggered_plot.update(new_DI1, self.digital_plot, self.analog_plot)
+            self.event_triggered_plot.update(new_DI1)
             self.record_clock.update()
 
     def refresh(self):

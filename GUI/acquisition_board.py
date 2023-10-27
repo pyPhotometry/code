@@ -1,6 +1,6 @@
 # Code which runs on host computer and implements communication with
 # pyboard and saving data to disk.
-# Copyright (c) Thomas Akam 2018-2020.
+# Copyright (c) Thomas Akam 2018-2023.
 # Licenced under the GNU General Public License v3.
 
 import os
@@ -12,7 +12,7 @@ from datetime import datetime
 from time import sleep
 
 from GUI.pyboard import Pyboard, PyboardError
-from config.GUI_config import VERSION
+from config.GUI_config import VERSION, update_interval
 
 from config import hardware_config as hwc
 
@@ -83,7 +83,7 @@ class Acquisition_board(Pyboard):
 
     def set_sampling_rate(self, sampling_rate):
         self.sampling_rate = int(min(sampling_rate, self.max_rate))
-        self.buffer_size = max(2, int(self.sampling_rate // 20) * 2)
+        self.buffer_size = max(2, int(self.sampling_rate // (1000 / update_interval)) * 2)
         self.serial_chunk_size = (self.buffer_size + 2) * 2
         return self.sampling_rate
 
