@@ -9,7 +9,7 @@ from enum import Enum
 import config.GUI_config as GUI_config
 from GUI.acquisition_board import Acquisition_board
 from GUI.pyboard import PyboardError
-from GUI.plotting import Analog_plot, Record_clock
+from GUI.plotting import Setup_plot, Record_clock
 from GUI.utility import set_cbox_item
 
 # ----------------------------------------------------------------------------------------
@@ -55,6 +55,7 @@ class Multi_tab(QtWidgets.QWidget):
         self.status = None
         self.control_button_action = None
         self.setupboxes = []
+        self.n_setups = 0
         self.data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
         # Config groupbox
@@ -162,7 +163,7 @@ class Multi_tab(QtWidgets.QWidget):
 
         # Initial state
 
-        self.add_setup()
+        self.add_remove_setups(1)
         self.update_status()
 
     # Methods to change number of setups.
@@ -184,6 +185,10 @@ class Multi_tab(QtWidgets.QWidget):
                 self.remove_setup()
             elif self.n_setups < n_setups:
                 self.add_setup()
+        if self.n_setups == 1:  # Show event triggered plot.
+            self.setupboxes[0].setup_plot.etp_checkbox.setChecked(True)
+        else:
+            self.setupboxes[0].setup_plot.etp_checkbox.setChecked(False)
 
     # Methods to update the UI
 
@@ -420,8 +425,8 @@ class Setupbox(QtWidgets.QGroupBox):
 
         # Plots
 
-        self.analog_plot = Analog_plot(self)
-        self.record_clock = Record_clock(self.analog_plot.axis)
+        self.setup_plot = Setup_plot(self)
+        self.record_clock = Record_clock(self.setup_plot.axis)
 
         # Layout
 
@@ -441,7 +446,7 @@ class Setupbox(QtWidgets.QGroupBox):
         self.Hlayout.addStretch()
         self.Vlayout = QtWidgets.QVBoxLayout(self)
         self.Vlayout.addLayout(self.Hlayout)
-        self.Vlayout.addWidget(self.analog_plot)
+        self.Vlayout.addWidget(self.setup_plot)
 
         # Initial setup.
 
@@ -507,7 +512,7 @@ class Setupbox(QtWidgets.QGroupBox):
 
     def start(self):
         """Start data acqusition"""
-        self.analog_plot.reset(self.board.sampling_rate)
+        self.setup_plot.reset(self.board.sampling_rate)
         self.board.start()
         self.multi_tab.GUI_main.refresh_timer.stop()
         self.status = Status.RUNNING
@@ -611,7 +616,7 @@ class Setupbox(QtWidgets.QGroupBox):
         if data:
             new_ADC1, new_ADC2, new_DI1, new_DI2 = data
             # Update plots.
-            self.analog_plot.update(new_ADC1, new_ADC2, new_DI1, new_DI2)
+            self.setup_plot.update(new_ADC1, new_ADC2, new_DI1, new_DI2)
             self.record_clock.update()
 
     def update_ports(self):
@@ -621,18 +626,18 @@ class Setupbox(QtWidgets.QGroupBox):
 
     # Cleanup.
 
-    def serial_connection_lost(self):
-        if self.is_running():
-            self.update_timer.stop()
-            self.refresh_timer.start(self.refresh_interval)
-            self.board_groupbox.setEnabled(True)
-            self.start_button.setEnabled(True)
-            self.board.stop_recording()
-            self.record_clock.stop()
-        self.disconnect()
-        QtWidgets.QMessageBox.question(
-            self, "Error", "Serial connection lost.", QtWidgets.QMessageBox.StandardButton.Ok
-        )
+    # def serial_connection_lost(self):
+    #     if self.is_running():
+    #         self.update_timer.stop()
+    #         self.refresh_timer.start(self.refresh_interval)
+    #         self.board_groupbox.setEnabled(True)
+    #         self.start_button.setEnabled(True)
+    #         self.board.stop_recording()
+    #         self.record_clock.stop()
+    #     self.disconnect()
+    #     QtWidgets.QMessageBox.question(
+    #         self, "Error", "Serial connection lost.", QtWidgets.QMessageBox.StandardButton.Ok
+    #     )
 
     def closeEvent(self, event):
         # Called when GUI window is closed.

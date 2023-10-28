@@ -7,13 +7,11 @@ import ctypes
 import traceback
 import logging
 from pyqtgraph.Qt import QtGui, QtWidgets, QtCore
-from serial import SerialException
 from serial.tools import list_ports
 
 import config.GUI_config as GUI_config
-from GUI.single_tab import Single_tab
 from GUI.multi_tab import Multi_tab
-
+from GUI.setups_tab import Setups_tab
 
 if os.name == "nt":  # Needed on windows to get taskbar icon to display correctly.
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("pyPhotometry")
@@ -37,11 +35,11 @@ class GUI_main(QtWidgets.QMainWindow):
         self.tab_widget = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_widget)
 
-        self.single_tab = Single_tab(self)
         self.multi_tab = Multi_tab(self)
+        self.setups_tab = Setups_tab(self)
 
-        self.tab_widget.addTab(self.single_tab, "Single board")
-        self.tab_widget.addTab(self.multi_tab, "Multi board")
+        self.tab_widget.addTab(self.multi_tab, "Acquisition")
+        self.tab_widget.addTab(self.setups_tab, "Setups")
         self.tab_widget.currentChanged.connect(self.tab_changed)
 
         # Timers
@@ -57,22 +55,17 @@ class GUI_main(QtWidgets.QMainWindow):
         ports = set([c[0] for c in list_ports.comports() if ("Pyboard" in c[1]) or ("USB Serial Device" in c[1])])
         self.ports_changed = not ports == self.available_ports
         self.available_ports = ports
-        self.single_tab.refresh()
         self.multi_tab.refresh()
 
     def tab_changed(self, new_tab_ind):
         """Called whenever the active tab is changed."""
         if self.current_tab_ind == 0:
-            self.single_tab.disconnect()
-        elif self.current_tab_ind == 1:
             self.multi_tab.disconnect()
         self.current_tab_ind = new_tab_ind
 
     def closeEvent(self, event):
         """Called when GUI window is closed."""
         if self.current_tab_ind == 0:
-            self.single_tab.disconnect()
-        elif self.current_tab_ind == 1:
             self.multi_tab.disconnect()
         event.accept()
 
@@ -80,13 +73,7 @@ class GUI_main(QtWidgets.QMainWindow):
 
     def excepthook(self, ex_type, ex_value, ex_traceback):
         """Called when an uncaught exception occurs, shows error message and traceback in dialog."""
-        ex_str = "\n".join(traceback.format_exception(ex_type, ex_value, ex_traceback, chain=False))
-        if ex_type == SerialException:
-            self.serial_connection_lost()
-        elif ex_type == ValueError and "ViewBoxMenu" in ex_str:
-            pass  # Bug in pyqtgraph when invalid string entered as axis range limit.
-        else:
-            logging.error("".join(traceback.format_exception(ex_type, ex_value, ex_traceback)))
+        logging.error("".join(traceback.format_exception(ex_type, ex_value, ex_traceback)))
 
 
 # --------------------------------------------------------------------------------

@@ -8,10 +8,13 @@ from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
 
 from config.GUI_config import history_dur, triggered_dur, max_plot_pulses
 
-# Analog_plot ------------------------------------------------------
+# Setup_plot ------------------------------------------------------
 
 
-class Analog_plot(QtWidgets.QWidget):
+class Setup_plot(QtWidgets.QWidget):
+
+    """Class for plotting data from one setup."""
+
     def __init__(self, parent=None):
         super(QtWidgets.QWidget, self).__init__(parent)
         self.parent = parent
@@ -19,20 +22,29 @@ class Analog_plot(QtWidgets.QWidget):
         # Create axis
         self.axis = pg.PlotWidget(title="Analog signal", labels={"left": "Volts"})
         self.axis.setMouseEnabled(x=False, y=False)
+        self.axis.getPlotItem().setMenuEnabled(False)
         self.axis.disableAutoRange()
         self.legend = self.axis.addLegend(offset=(10, 10))
         self.plot_1 = self.axis.plot(pen=pg.mkPen("g"), name="analog 1")
         self.plot_2 = self.axis.plot(pen=pg.mkPen("r"), name="analog 2")
-        self.axis.setYRange(0, 3.3, padding=0)
-        self.axis.setXRange(-history_dur, history_dur * 0.02, padding=0)
+        self.axis.setYRange(-0.1, 3.3, padding=0)
+        self.axis.setXRange(-history_dur, 0.2, padding=0)
+        self.axis.setLimits(xMin=-history_dur, xMax=0.2)
+
+        # Plotting classes
         self.DI1_shader = Pulse_shader(self.axis, brush=(0, 0, 225, 80))
         self.DI2_shader = Pulse_shader(self.axis, brush=(225, 225, 0, 80))
+        self.event_triggered_plot = Event_triggered_plot(self)
+        self.event_triggered_plot.axis.setVisible(False)
 
         # Create controls
-        self.autoscale_button = QtWidgets.QPushButton("Auto-scale")
+        self.yrange_label = QtWidgets.QLabel("Y range:")
+        self.fullrange_button = QtWidgets.QPushButton("Full")
+        self.fullrange_button.setFixedWidth(50)
+        self.fullrange_button.clicked.connect(lambda x: self.axis.setYRange(-0.1, 3.3, padding=0))
+        self.autoscale_button = QtWidgets.QPushButton("Auto")
+        self.autoscale_button.setFixedWidth(50)
         self.autoscale_button.clicked.connect(self.autoscale)
-        self.fullrange_button = QtWidgets.QPushButton("Full range")
-        self.fullrange_button.clicked.connect(lambda x: self.axis.setYRange(0, 3.3, padding=0))
         self.demean_checkbox = QtWidgets.QCheckBox("De-mean plotted signals")
         self.demean_checkbox.stateChanged.connect(self.enable_disable_demean_mode)
         self.offset_label = QtWidgets.QLabel("Offset channels (mV):")
@@ -42,19 +54,25 @@ class Analog_plot(QtWidgets.QWidget):
         self.offset_spinbox.setMaximum(500)
         self.offset_spinbox.setValue(100)
         self.offset_spinbox.setFixedWidth(50)
-        self.enable_disable_demean_mode()
+        self.etp_checkbox = QtWidgets.QCheckBox("Show event triggered plot")
+        self.etp_checkbox.stateChanged.connect(self.show_hide_event_triggered_plot)
         self.controls_layout = QtWidgets.QHBoxLayout()
+        self.controls_layout.addWidget(self.yrange_label)
         self.controls_layout.addWidget(self.fullrange_button)
         self.controls_layout.addWidget(self.autoscale_button)
         self.controls_layout.addWidget(self.demean_checkbox)
         self.controls_layout.addWidget(self.offset_label)
         self.controls_layout.addWidget(self.offset_spinbox)
+        self.controls_layout.addWidget(self.etp_checkbox)
         self.controls_layout.addStretch()
+
+        self.enable_disable_demean_mode()
 
         # Main layout
         self.vertical_layout = QtWidgets.QVBoxLayout()
         self.vertical_layout.addLayout(self.controls_layout)
         self.vertical_layout.addWidget(self.axis)
+        self.vertical_layout.addWidget(self.event_triggered_plot.axis)
         self.setLayout(self.vertical_layout)
 
     def reset(self, sampling_rate):
@@ -62,17 +80,23 @@ class Analog_plot(QtWidgets.QWidget):
         self.autoscale_next_update = False
         self.ADC1 = Signal_history(history_length)
         self.ADC2 = Signal_history(history_length)
+        self.DI1 = Signal_history(history_length, int)
+        self.DI2 = Signal_history(history_length, int)
         self.x = np.linspace(-history_dur, 0, history_length)  # X axis for timeseries plots.
-        self.DI1_shader.reset(history_length)
-        self.DI2_shader.reset(history_length)
+        self.DI1_shader.reset(self.DI1, self.x)
+        self.DI2_shader.reset(self.DI2, self.x)
+        self.event_triggered_plot.reset(sampling_rate)
 
     def update(self, new_ADC1, new_ADC2, new_DI1, new_DI2):
         new_ADC1 = 3.3 * new_ADC1 / (1 << 15)  # Convert to Volts.
         new_ADC2 = 3.3 * new_ADC2 / (1 << 15)
         self.ADC1.update(new_ADC1)
         self.ADC2.update(new_ADC2)
-        self.DI1_shader.update(new_DI1)
-        self.DI2_shader.update(new_DI2)
+        self.DI1.update(new_DI1)
+        self.DI2.update(new_DI2)
+        self.DI1_shader.update()
+        self.DI2_shader.update()
+        self.event_triggered_plot.update(len(new_ADC1))
         if self.AC_mode:
             # Plot signals with mean removed.
             y1 = self.ADC1.history - np.nanmean(self.ADC1.history) + self.offset_spinbox.value() / 1000
@@ -98,28 +122,33 @@ class Analog_plot(QtWidgets.QWidget):
         if self.parent.is_running():
             self.autoscale_next_update = True
 
+    def show_hide_event_triggered_plot(self):
+        if self.etp_checkbox.isChecked():
+            self.event_triggered_plot.axis.setVisible(True)
+        else:
+            self.event_triggered_plot.axis.setVisible(False)
+
     def autoscale(self):
         """Set the axis ranges to show all the data"""
-        self.axis.getPlotItem().getViewBox().autoRange()
+        self.axis.autoRange(padding=0.1)
 
 
 class Pulse_shader:
-    """Class for plotting pulses as shaded regions on Analog_plot."""
+    """Class for plotting pulses as shaded regions on Setup_plot."""
 
     def __init__(self, axis, brush):
         self.axis = axis
         self.pulses = []
         self.brush = brush
 
-    def reset(self, history_length):
-        self.x = np.linspace(-history_dur, 0, history_length)
-        self.DI = Signal_history(history_length, int)
+    def reset(self, DI, x):
+        self.DI = DI
+        self.x = x
         for pulse in self.pulses:
             self.axis.removeItem(pulse)
         self.pulses = []
 
-    def update(self, new_DI):
-        self.DI.update(new_DI)
+    def update(self):
         pulse_starts = self.x[np.where(np.diff(self.DI.history) == 1)[0] + 1]
         pulse_ends = self.x[np.where(np.diff(self.DI.history) == -1)[0] + 1]
         if self.DI.history[0] == 1:
@@ -143,8 +172,8 @@ class Pulse_shader:
 
 
 class Event_triggered_plot:
-    def __init__(self, analog_plot, tau=5):
-        self.analog_plot = analog_plot
+    def __init__(self, setup_plot, tau=5):
+        self.setup_plot = setup_plot
         self.axis = pg.PlotWidget(title="Event triggered", labels={"left": "Volts", "bottom": "Time (seconds)"})
         self.axis.setMouseEnabled(x=False, y=False)
         self.axis.addLegend(offset=(-10, 10))
@@ -163,14 +192,13 @@ class Event_triggered_plot:
         self.prev_plot.clear()
         self.ave_plot.clear()
 
-    def update(self, new_DI1):
+    def update(self, new_data_len):
         # Update event triggered average plot.
-        new_data_len = len(new_DI1)
-        trig_section = self.analog_plot.DI1_shader.DI.history[-self.window[1] - new_data_len - 1 : -self.window[1]]
+        trig_section = self.setup_plot.DI1.history[-self.window[1] - new_data_len - 1 : -self.window[1]]
         rising_edges = np.where(np.diff(trig_section) == 1)[0]
         for i, edge in enumerate(rising_edges):
             edge_ind = -self.window[1] - new_data_len - 1 + edge  # Position of edge in signal history.
-            ev_trig_sig = self.analog_plot.ADC1.history[edge_ind + self.window[0] : edge_ind + self.window[1]]
+            ev_trig_sig = self.setup_plot.ADC1.history[edge_ind + self.window[0] : edge_ind + self.window[1]]
             if self.average is None:  # First acquisition
                 self.average = ev_trig_sig
             else:  # Update averaged trace.
