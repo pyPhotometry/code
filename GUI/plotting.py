@@ -5,13 +5,14 @@ import numpy as np
 import pyqtgraph as pg
 from datetime import datetime
 from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
+from pyqtgraph.Qt.QtWidgets import QFrame
 
 from config.GUI_config import history_dur, triggered_dur, max_plot_pulses
 
-# Setup_plot ------------------------------------------------------
+# Signals_plot ------------------------------------------------------
 
 
-class Setup_plot(QtWidgets.QWidget):
+class Signals_plot(QtWidgets.QWidget):
 
     """Class for plotting data from one setup."""
 
@@ -45,6 +46,12 @@ class Setup_plot(QtWidgets.QWidget):
         self.autoscale_button = QtWidgets.QPushButton("Auto")
         self.autoscale_button.setFixedWidth(50)
         self.autoscale_button.clicked.connect(self.autoscale)
+        self.zoom_out_button = QtWidgets.QPushButton("-")
+        self.zoom_out_button.setFixedWidth(30)
+        self.zoom_out_button.clicked.connect(lambda x: self.scale_y(1.25))
+        self.zoom_in_button = QtWidgets.QPushButton("+")
+        self.zoom_in_button.setFixedWidth(30)
+        self.zoom_in_button.clicked.connect(lambda x: self.scale_y(0.75))
         self.demean_checkbox = QtWidgets.QCheckBox("De-mean plotted signals")
         self.demean_checkbox.stateChanged.connect(self.enable_disable_demean_mode)
         self.offset_label = QtWidgets.QLabel("Offset channels (mV):")
@@ -60,9 +67,13 @@ class Setup_plot(QtWidgets.QWidget):
         self.controls_layout.addWidget(self.yrange_label)
         self.controls_layout.addWidget(self.fullrange_button)
         self.controls_layout.addWidget(self.autoscale_button)
+        self.controls_layout.addWidget(self.zoom_out_button)
+        self.controls_layout.addWidget(self.zoom_in_button)
+        self.controls_layout.addWidget(QFrame(frameShape=QFrame.VLine, frameShadow=QFrame.Sunken))
         self.controls_layout.addWidget(self.demean_checkbox)
         self.controls_layout.addWidget(self.offset_label)
         self.controls_layout.addWidget(self.offset_spinbox)
+        self.controls_layout.addWidget(QFrame(frameShape=QFrame.VLine, frameShadow=QFrame.Sunken))
         self.controls_layout.addWidget(self.etp_checkbox)
         self.controls_layout.addStretch()
 
@@ -70,6 +81,7 @@ class Setup_plot(QtWidgets.QWidget):
 
         # Main layout
         self.vertical_layout = QtWidgets.QVBoxLayout()
+        self.vertical_layout.setContentsMargins(0, 0, 0, 0)
         self.vertical_layout.addLayout(self.controls_layout)
         self.vertical_layout.addWidget(self.axis)
         self.vertical_layout.addWidget(self.event_triggered_plot.axis)
@@ -132,9 +144,12 @@ class Setup_plot(QtWidgets.QWidget):
         """Set the axis ranges to show all the data"""
         self.axis.autoRange(padding=0.1)
 
+    def scale_y(self, s):
+        self.axis.getPlotItem().getViewBox().scaleBy(y=s)
+
 
 class Pulse_shader:
-    """Class for plotting pulses as shaded regions on Setup_plot."""
+    """Class for plotting pulses as shaded regions on Signals_plot."""
 
     def __init__(self, axis, brush):
         self.axis = axis
@@ -172,8 +187,8 @@ class Pulse_shader:
 
 
 class Event_triggered_plot:
-    def __init__(self, setup_plot, tau=5):
-        self.setup_plot = setup_plot
+    def __init__(self, signals_plot, tau=5):
+        self.signals_plot = signals_plot
         self.axis = pg.PlotWidget(title="Event triggered", labels={"left": "Volts", "bottom": "Time (seconds)"})
         self.axis.setMouseEnabled(x=False, y=False)
         self.axis.addLegend(offset=(-10, 10))
@@ -194,11 +209,11 @@ class Event_triggered_plot:
 
     def update(self, new_data_len):
         # Update event triggered average plot.
-        trig_section = self.setup_plot.DI1.history[-self.window[1] - new_data_len - 1 : -self.window[1]]
+        trig_section = self.signals_plot.DI1.history[-self.window[1] - new_data_len - 1 : -self.window[1]]
         rising_edges = np.where(np.diff(trig_section) == 1)[0]
         for i, edge in enumerate(rising_edges):
             edge_ind = -self.window[1] - new_data_len - 1 + edge  # Position of edge in signal history.
-            ev_trig_sig = self.setup_plot.ADC1.history[edge_ind + self.window[0] : edge_ind + self.window[1]]
+            ev_trig_sig = self.signals_plot.ADC1.history[edge_ind + self.window[0] : edge_ind + self.window[1]]
             if self.average is None:  # First acquisition
                 self.average = ev_trig_sig
             else:  # Update averaged trace.

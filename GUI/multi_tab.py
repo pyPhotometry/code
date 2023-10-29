@@ -1,6 +1,7 @@
 import os
 import json
 from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
+from pyqtgraph.Qt.QtWidgets import QFrame
 from serial import SerialException
 from dataclasses import dataclass, asdict
 from typing import List
@@ -9,7 +10,7 @@ from enum import Enum
 import config.GUI_config as GUI_config
 from GUI.acquisition_board import Acquisition_board
 from GUI.pyboard import PyboardError
-from GUI.plotting import Setup_plot, Record_clock
+from GUI.plotting import Signals_plot, Record_clock
 from GUI.utility import set_cbox_item
 
 # ----------------------------------------------------------------------------------------
@@ -186,9 +187,9 @@ class Multi_tab(QtWidgets.QWidget):
             elif self.n_setups < n_setups:
                 self.add_setup()
         if self.n_setups == 1:  # Show event triggered plot.
-            self.setupboxes[0].setup_plot.etp_checkbox.setChecked(True)
+            self.setupboxes[0].signals_plot.etp_checkbox.setChecked(True)
         else:
-            self.setupboxes[0].setup_plot.etp_checkbox.setChecked(False)
+            self.setupboxes[0].signals_plot.etp_checkbox.setChecked(False)
 
     # Methods to update the UI
 
@@ -366,11 +367,12 @@ class Multi_tab(QtWidgets.QWidget):
 # ----------------------------------------------------------------------------------------
 
 
-class Setupbox(QtWidgets.QGroupBox):
+class Setupbox(QtWidgets.QFrame):
     """Groupbox for displaying data from a single setup."""
 
     def __init__(self, parent, ID):
-        super(QtWidgets.QGroupBox, self).__init__(parent=parent)
+        super(QtWidgets.QFrame, self).__init__(parent=parent)
+        self.setFrameStyle(QtWidgets.QFrame.StyledPanel | QtWidgets.QFrame.Plain)
         self.multi_tab = self.parent()
 
         # Variables
@@ -383,9 +385,9 @@ class Setupbox(QtWidgets.QGroupBox):
 
         # Widgets
 
-        self.status_label = QtWidgets.QLabel("Status:")
         self.status_text = QtWidgets.QLineEdit("Not connected")
-        self.status_text.setStyleSheet("background-color:rgb(210, 210, 210);")
+        self.status_text.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        # self.status_text.setStyleSheet("background-color:rgb(210, 210, 210);")
         self.status_text.setReadOnly(True)
         self.status_text.setFixedWidth(105)
 
@@ -400,8 +402,6 @@ class Setupbox(QtWidgets.QGroupBox):
 
         self.subject_label = QtWidgets.QLabel("Subject ID:")
         self.subject_text = QtWidgets.QLineEdit(self.subject_ID)
-        self.subject_text.setFixedWidth(80)
-        self.subject_text.setMaxLength(12)
         self.subject_text.textChanged.connect(self.test_data_path)
 
         self.current_label_1 = QtWidgets.QLabel("LED 1 mA:")
@@ -425,8 +425,8 @@ class Setupbox(QtWidgets.QGroupBox):
 
         # Plots
 
-        self.setup_plot = Setup_plot(self)
-        self.record_clock = Record_clock(self.setup_plot.axis)
+        self.signals_plot = Signals_plot(self)
+        self.record_clock = Record_clock(self.signals_plot.axis)
 
         # Layout
 
@@ -434,19 +434,22 @@ class Setupbox(QtWidgets.QGroupBox):
         self.Hlayout.addWidget(self.status_text)
         self.Hlayout.addWidget(self.port_select)
         self.Hlayout.addWidget(self.connect_button)
+        self.Hlayout.addWidget(QFrame(frameShape=QFrame.VLine, frameShadow=QFrame.Sunken))
         self.Hlayout.addWidget(self.subject_label)
         self.Hlayout.addWidget(self.subject_text)
         self.Hlayout.addWidget(self.current_label_1)
         self.Hlayout.addWidget(self.current_spinbox_1)
         self.Hlayout.addWidget(self.current_label_2)
         self.Hlayout.addWidget(self.current_spinbox_2)
+        self.Hlayout.addWidget(QFrame(frameShape=QFrame.VLine, frameShadow=QFrame.Sunken))
         self.Hlayout.addWidget(self.start_button)
         self.Hlayout.addWidget(self.record_button)
         self.Hlayout.addWidget(self.stop_button)
-        self.Hlayout.addStretch()
         self.Vlayout = QtWidgets.QVBoxLayout(self)
         self.Vlayout.addLayout(self.Hlayout)
-        self.Vlayout.addWidget(self.setup_plot)
+        self.Vlayout.addWidget(QFrame(frameShape=QFrame.HLine, frameShadow=QFrame.Sunken))
+        self.Vlayout.addWidget(self.signals_plot)
+        self.Hlayout.addStretch()
 
         # Initial setup.
 
@@ -482,11 +485,9 @@ class Setupbox(QtWidgets.QGroupBox):
         except SerialException:
             self.status_text.setText("Connection failed")
             self.connect_button.setEnabled(True)
-            raise
         except PyboardError:
             self.status_text.setText("Connection failed")
             self.connect_button.setEnabled(True)
-            raise
             try:
                 self.board.close()
             except AttributeError:
@@ -512,7 +513,7 @@ class Setupbox(QtWidgets.QGroupBox):
 
     def start(self):
         """Start data acqusition"""
-        self.setup_plot.reset(self.board.sampling_rate)
+        self.signals_plot.reset(self.board.sampling_rate)
         self.board.start()
         self.multi_tab.GUI_main.refresh_timer.stop()
         self.status = Status.RUNNING
@@ -616,7 +617,7 @@ class Setupbox(QtWidgets.QGroupBox):
         if data:
             new_ADC1, new_ADC2, new_DI1, new_DI2 = data
             # Update plots.
-            self.setup_plot.update(new_ADC1, new_ADC2, new_DI1, new_DI2)
+            self.signals_plot.update(new_ADC1, new_ADC2, new_DI1, new_DI2)
             self.record_clock.update()
 
     def update_ports(self):
