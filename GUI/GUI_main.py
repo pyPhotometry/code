@@ -42,6 +42,17 @@ class GUI_main(QtWidgets.QMainWindow):
         self.tab_widget.addTab(self.setups_tab, "Setups")
         self.tab_widget.currentChanged.connect(self.tab_changed)
 
+        # Keyboard Shortcuts
+
+        fullscale_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+F"), self)
+        fullscale_shortcut.activated.connect(self.acquisition_tab.set_full_Yscale)
+
+        autoscale_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+A"), self)
+        autoscale_shortcut.activated.connect(self.acquisition_tab.set_auto_Yscale)
+
+        demean_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+D"), self)
+        demean_shortcut.activated.connect(self.acquisition_tab.toggle_demean_mode)
+
         # Timers
 
         self.refresh_timer = QtCore.QTimer()  # Timer to regularly call refresh() when not running.

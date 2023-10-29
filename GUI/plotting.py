@@ -42,7 +42,7 @@ class Signals_plot(QtWidgets.QWidget):
         self.yrange_label = QtWidgets.QLabel("Y range:")
         self.fullrange_button = QtWidgets.QPushButton("Full")
         self.fullrange_button.setFixedWidth(50)
-        self.fullrange_button.clicked.connect(lambda x: self.axis.setYRange(-0.1, 3.3, padding=0))
+        self.fullrange_button.clicked.connect(self.fullscale)
         self.autoscale_button = QtWidgets.QPushButton("Auto")
         self.autoscale_button.setFixedWidth(50)
         self.autoscale_button.clicked.connect(self.autoscale)
@@ -111,8 +111,8 @@ class Signals_plot(QtWidgets.QWidget):
         self.event_triggered_plot.update(len(new_ADC1))
         if self.AC_mode:
             # Plot signals with mean removed.
-            y1 = self.ADC1.history - np.nanmean(self.ADC1.history) + self.offset_spinbox.value() / 1000
-            y2 = self.ADC2.history - np.nanmean(self.ADC2.history)
+            y1 = self.ADC1.history - np.nanmean(self.ADC1.history)
+            y2 = self.ADC2.history - np.nanmean(self.ADC2.history) - self.offset_spinbox.value() / 1000
             self.plot_1.setData(self.x, y1)
             self.plot_2.setData(self.x, y2)
         else:
@@ -141,10 +141,15 @@ class Signals_plot(QtWidgets.QWidget):
             self.event_triggered_plot.axis.setVisible(False)
 
     def autoscale(self):
-        """Set the axis ranges to show all the data"""
+        """Set the Y axis ranges to show all the data"""
         self.axis.autoRange(padding=0.1)
 
+    def fullscale(self):
+        """Set the Y axis ranges to show the full signal range."""
+        self.axis.setYRange(-0.1, 3.3, padding=0)
+
     def scale_y(self, s):
+        """Zoom in or out the Y scale by specified factor."""
         self.axis.getPlotItem().getViewBox().scaleBy(y=s)
 
 

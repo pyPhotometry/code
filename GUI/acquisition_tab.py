@@ -293,6 +293,18 @@ class Acquisition_tab(QtWidgets.QWidget):
                     set_rate = box.board.set_sampling_rate(sampling_rate)
                     self.rate_text.setText(str(set_rate))
 
+    def set_full_Yscale(self):
+        for box in self.setupboxes:
+            box.signals_plot.fullscale()
+
+    def set_auto_Yscale(self):
+        for box in self.setupboxes:
+            box.signals_plot.autoscale()
+
+    def toggle_demean_mode(self):
+        for box in self.setupboxes:
+            box.signals_plot.demean_checkbox.setChecked(not box.signals_plot.demean_checkbox.isChecked())
+
     # Data path methods.
 
     def select_data_dir(self):
@@ -368,7 +380,7 @@ class Acquisition_tab(QtWidgets.QWidget):
 
 
 class Setupbox(QtWidgets.QFrame):
-    """Groupbox for displaying data from a single setup."""
+    """Widget for displaying data from a single setup."""
 
     def __init__(self, parent, ID):
         super(QtWidgets.QFrame, self).__init__(parent=parent)
@@ -391,7 +403,6 @@ class Setupbox(QtWidgets.QFrame):
         self.status_text.setReadOnly(True)
         self.status_text.setFixedWidth(105)
 
-        self.port_label = QtWidgets.QLabel("Serial port:")
         self.port_select = QtWidgets.QComboBox()
         self.connect_button = QtWidgets.QPushButton("Connect")
         self.connect_button.setIcon(QtGui.QIcon("GUI/icons/connect.svg"))
@@ -404,10 +415,10 @@ class Setupbox(QtWidgets.QFrame):
         self.subject_text = QtWidgets.QLineEdit(self.subject_ID)
         self.subject_text.textChanged.connect(self.test_data_path)
 
-        self.current_label_1 = QtWidgets.QLabel("LED 1 mA:")
+        self.current_label_1 = QtWidgets.QLabel("LED 1 current (mA):")
         self.current_spinbox_1 = QtWidgets.QSpinBox()
         self.current_spinbox_1.setFixedWidth(50)
-        self.current_label_2 = QtWidgets.QLabel("LED 2 mA:")
+        self.current_label_2 = QtWidgets.QLabel("LED 2 current (mA):")
         self.current_spinbox_2 = QtWidgets.QSpinBox()
         self.current_spinbox_2.setFixedWidth(50)
         self.current_spinbox_1.setValue(GUI_config.default_LED_current[0])
@@ -515,7 +526,6 @@ class Setupbox(QtWidgets.QFrame):
         """Start data acqusition"""
         self.signals_plot.reset(self.board.sampling_rate)
         self.board.start()
-        self.acquisition_tab.GUI_main.refresh_timer.stop()
         self.status = Status.RUNNING
         self.acquisition_tab.update_status()
         # Update UI.
@@ -540,9 +550,12 @@ class Setupbox(QtWidgets.QFrame):
         self.status = Status.RECORDING
         self.acquisition_tab.update_status()
 
-    def stop(self, error=False):
+    def stop(self):
         """Stop data acqusition"""
-        self.board.stop()
+        try:
+            self.board.stop()
+        except:  # Called for UI effects after board error.
+            pass
         self.status = Status.STOPPED
         self.acquisition_tab.update_status()
         self.stop_button.setEnabled(False)
@@ -553,10 +566,7 @@ class Setupbox(QtWidgets.QFrame):
         self.current_spinbox_2.setEnabled(True)
         self.subject_text.setEnabled(True)
         self.connect_button.setEnabled(True)
-        if error:
-            self.status_text.setText("Error")
-        else:
-            self.status_text.setText("Connected")
+        self.status_text.setText("Connected")
         self.record_clock.stop()
 
     # Configuration
@@ -611,9 +621,11 @@ class Setupbox(QtWidgets.QFrame):
         # and update the plot.
         try:
             data = self.board.process_data()
-        except PyboardError:
-            self.stop(error=True)
+        except (PyboardError, SerialException):
+            self.disconnect()
+            self.status_text.setText("Error")
             raise
+            return
         if data:
             new_ADC1, new_ADC2, new_DI1, new_DI2 = data
             # Update plots.
@@ -626,19 +638,6 @@ class Setupbox(QtWidgets.QFrame):
         self.port_select.addItems(sorted(self.acquisition_tab.GUI_main.available_ports))
 
     # Cleanup.
-
-    # def serial_connection_lost(self):
-    #     if self.is_running():
-    #         self.update_timer.stop()
-    #         self.refresh_timer.start(self.refresh_interval)
-    #         self.board_groupbox.setEnabled(True)
-    #         self.start_button.setEnabled(True)
-    #         self.board.stop_recording()
-    #         self.record_clock.stop()
-    #     self.disconnect()
-    #     QtWidgets.QMessageBox.question(
-    #         self, "Error", "Serial connection lost.", QtWidgets.QMessageBox.StandardButton.Ok
-    #     )
 
     def closeEvent(self, event):
         # Called when GUI window is closed.
