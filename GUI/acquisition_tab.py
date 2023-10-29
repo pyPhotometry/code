@@ -14,7 +14,7 @@ from GUI.plotting import Signals_plot, Record_clock
 from GUI.utility import set_cbox_item
 
 # ----------------------------------------------------------------------------------------
-#  Multi-tab
+#  Acquisition_tab
 # ----------------------------------------------------------------------------------------
 
 config_save_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments")
@@ -47,7 +47,7 @@ class Status(Enum):
     MIXED_NOTRUNNING = 5
 
 
-class Multi_tab(QtWidgets.QWidget):
+class Acquisition_tab(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(QtWidgets.QWidget, self).__init__(parent)
         self.GUI_main = self.parent()
@@ -373,7 +373,7 @@ class Setupbox(QtWidgets.QFrame):
     def __init__(self, parent, ID):
         super(QtWidgets.QFrame, self).__init__(parent=parent)
         self.setFrameStyle(QtWidgets.QFrame.StyledPanel | QtWidgets.QFrame.Plain)
-        self.multi_tab = self.parent()
+        self.acquisition_tab = self.parent()
 
         # Variables
 
@@ -463,9 +463,9 @@ class Setupbox(QtWidgets.QFrame):
         try:
             self.status_text.setText("Connecting")
             self.connect_button.setEnabled(False)
-            self.multi_tab.GUI_main.app.processEvents()
+            self.acquisition_tab.GUI_main.app.processEvents()
             self.board = Acquisition_board(self.port_select.currentText())
-            self.select_mode(self.multi_tab.mode_select.currentText())
+            self.select_mode(self.acquisition_tab.mode_select.currentText())
             self.port_select.setEnabled(False)
             self.subject_text.setEnabled(True)
             self.current_spinbox_1.setEnabled(True)
@@ -481,7 +481,7 @@ class Setupbox(QtWidgets.QFrame):
             self.current_spinbox_1.valueChanged.connect(lambda v: self.board.set_LED_current(LED_1_current=int(v)))
             self.current_spinbox_2.valueChanged.connect(lambda v: self.board.set_LED_current(LED_2_current=int(v)))
             self.status = Status.STOPPED
-            self.multi_tab.update_status()
+            self.acquisition_tab.update_status()
         except SerialException:
             self.status_text.setText("Connection failed")
             self.connect_button.setEnabled(True)
@@ -500,7 +500,7 @@ class Setupbox(QtWidgets.QFrame):
         if self.board:
             self.board.close()
         self.status = Status.DISCONNECTED
-        self.multi_tab.update_status()
+        self.acquisition_tab.update_status()
         self.board = None
         self.connect_button.setText("Connect")
         self.connect_button.setIcon(QtGui.QIcon("GUI/icons/connect.svg"))
@@ -515,9 +515,9 @@ class Setupbox(QtWidgets.QFrame):
         """Start data acqusition"""
         self.signals_plot.reset(self.board.sampling_rate)
         self.board.start()
-        self.multi_tab.GUI_main.refresh_timer.stop()
+        self.acquisition_tab.GUI_main.refresh_timer.stop()
         self.status = Status.RUNNING
-        self.multi_tab.update_status()
+        self.acquisition_tab.update_status()
         # Update UI.
         self.connect_button.setEnabled(False)
         self.start_button.setEnabled(False)
@@ -528,8 +528,8 @@ class Setupbox(QtWidgets.QFrame):
 
     def record(self):
         """Start recording data to disk."""
-        filetype = self.multi_tab.filetype_select.currentText()
-        file_name = self.board.record(self.multi_tab.data_dir, self.subject_ID, filetype)
+        filetype = self.acquisition_tab.filetype_select.currentText()
+        file_name = self.board.record(self.acquisition_tab.data_dir, self.subject_ID, filetype)
         self.clipboard.setText(file_name)
         self.status_text.setText("Recording")
         self.current_spinbox_1.setEnabled(False)
@@ -538,13 +538,13 @@ class Setupbox(QtWidgets.QFrame):
         self.subject_text.setEnabled(False)
         self.record_clock.start()
         self.status = Status.RECORDING
-        self.multi_tab.update_status()
+        self.acquisition_tab.update_status()
 
     def stop(self, error=False):
         """Stop data acqusition"""
         self.board.stop()
         self.status = Status.STOPPED
-        self.multi_tab.update_status()
+        self.acquisition_tab.update_status()
         self.stop_button.setEnabled(False)
         self.board.serial.reset_input_buffer()
         self.start_button.setEnabled(True)
@@ -564,7 +564,7 @@ class Setupbox(QtWidgets.QFrame):
     def test_data_path(self):
         """Checks whether data dir and subject ID are valid."""
         self.subject_ID = self.subject_text.text()
-        if self.status == Status.RUNNING and os.path.isdir(self.multi_tab.data_dir) and str(self.subject_ID):
+        if self.status == Status.RUNNING and os.path.isdir(self.acquisition_tab.data_dir) and str(self.subject_ID):
             self.record_button.setEnabled(True)
             return True
         else:
@@ -575,7 +575,7 @@ class Setupbox(QtWidgets.QFrame):
         """Set the acqusition mode."""
         if self.board:
             self.board.set_mode(mode)
-            self.multi_tab.rate_text.setText(str(self.board.sampling_rate))
+            self.acquisition_tab.rate_text.setText(str(self.board.sampling_rate))
             self.current_spinbox_1.setRange(0, self.board.max_LED_current)
             self.current_spinbox_2.setRange(0, self.board.max_LED_current)
             if self.current_spinbox_1.value() > self.board.max_LED_current:
@@ -623,7 +623,7 @@ class Setupbox(QtWidgets.QFrame):
     def update_ports(self):
         """Update available ports in port_select combobox."""
         self.port_select.clear()
-        self.port_select.addItems(sorted(self.multi_tab.GUI_main.available_ports))
+        self.port_select.addItems(sorted(self.acquisition_tab.GUI_main.available_ports))
 
     # Cleanup.
 
