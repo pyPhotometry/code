@@ -69,11 +69,11 @@ class Signals_plot(QtWidgets.QWidget):
         self.controls_layout.addWidget(self.autoscale_button)
         self.controls_layout.addWidget(self.zoom_out_button)
         self.controls_layout.addWidget(self.zoom_in_button)
-        self.controls_layout.addWidget(QFrame(frameShape=QFrame.VLine, frameShadow=QFrame.Sunken))
+        self.controls_layout.addWidget(QFrame(frameShape=QFrame.Shape.VLine, frameShadow=QFrame.Shadow.Sunken))
         self.controls_layout.addWidget(self.demean_checkbox)
         self.controls_layout.addWidget(self.offset_label)
         self.controls_layout.addWidget(self.offset_spinbox)
-        self.controls_layout.addWidget(QFrame(frameShape=QFrame.VLine, frameShadow=QFrame.Sunken))
+        self.controls_layout.addWidget(QFrame(frameShape=QFrame.Shape.VLine, frameShadow=QFrame.Shadow.Sunken))
         self.controls_layout.addWidget(self.etp_checkbox)
         self.controls_layout.addStretch()
 

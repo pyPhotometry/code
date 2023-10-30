@@ -384,7 +384,7 @@ class Setupbox(QtWidgets.QFrame):
 
     def __init__(self, parent, ID):
         super(QtWidgets.QFrame, self).__init__(parent=parent)
-        self.setFrameStyle(QtWidgets.QFrame.StyledPanel | QtWidgets.QFrame.Plain)
+        self.setFrameStyle(QtWidgets.QFrame.Shape.StyledPanel | QtWidgets.QFrame.Shadow.Plain)
         self.acquisition_tab = self.parent()
 
         # Variables
@@ -445,20 +445,20 @@ class Setupbox(QtWidgets.QFrame):
         self.Hlayout.addWidget(self.status_text)
         self.Hlayout.addWidget(self.port_select)
         self.Hlayout.addWidget(self.connect_button)
-        self.Hlayout.addWidget(QFrame(frameShape=QFrame.VLine, frameShadow=QFrame.Sunken))
+        self.Hlayout.addWidget(QFrame(frameShape=QFrame.Shape.VLine, frameShadow=QFrame.Shadow.Sunken))
         self.Hlayout.addWidget(self.subject_label)
         self.Hlayout.addWidget(self.subject_text)
         self.Hlayout.addWidget(self.current_label_1)
         self.Hlayout.addWidget(self.current_spinbox_1)
         self.Hlayout.addWidget(self.current_label_2)
         self.Hlayout.addWidget(self.current_spinbox_2)
-        self.Hlayout.addWidget(QFrame(frameShape=QFrame.VLine, frameShadow=QFrame.Sunken))
+        self.Hlayout.addWidget(QFrame(frameShape=QFrame.Shape.VLine, frameShadow=QFrame.Shadow.Sunken))
         self.Hlayout.addWidget(self.start_button)
         self.Hlayout.addWidget(self.record_button)
         self.Hlayout.addWidget(self.stop_button)
         self.Vlayout = QtWidgets.QVBoxLayout(self)
         self.Vlayout.addLayout(self.Hlayout)
-        self.Vlayout.addWidget(QFrame(frameShape=QFrame.HLine, frameShadow=QFrame.Sunken))
+        self.Vlayout.addWidget(QFrame(frameShape=QFrame.Shape.HLine, frameShadow=QFrame.Shadow.Sunken))
         self.Vlayout.addWidget(self.signals_plot)
         self.Hlayout.addStretch()
 
