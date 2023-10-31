@@ -86,7 +86,7 @@ class Acquisition_tab(QtWidgets.QWidget):
 
         self.mode_label = QtWidgets.QLabel("Mode:")
         self.mode_select = QtWidgets.QComboBox()
-        self.mode_select.addItems(["2 colour continuous", "1 colour time div.", "2 colour time div."])
+        self.mode_select.addItems(["2EX_2EM_continuous", "2EX_1EM_pulsed", "2EX_2EM_pulsed", "3EX_2EM_pulsed"])
         set_cbox_item(self.mode_select, GUI_config.default_acquisition_mode)
         self.mode_select.textActivated[str].connect(self.select_mode)
         self.rate_label = QtWidgets.QLabel("Sampling rate (Hz):")
@@ -437,7 +437,6 @@ class Setupbox(QtWidgets.QFrame):
         # Plots
 
         self.signals_plot = Signals_plot(self)
-        self.record_clock = Record_clock(self.signals_plot.axis)
 
         # Layout
 
@@ -448,6 +447,7 @@ class Setupbox(QtWidgets.QFrame):
         self.Hlayout.addWidget(QFrame(frameShape=QFrame.Shape.VLine, frameShadow=QFrame.Shadow.Sunken))
         self.Hlayout.addWidget(self.subject_label)
         self.Hlayout.addWidget(self.subject_text)
+        self.Hlayout.addWidget(QFrame(frameShape=QFrame.Shape.VLine, frameShadow=QFrame.Shadow.Sunken))
         self.Hlayout.addWidget(self.current_label_1)
         self.Hlayout.addWidget(self.current_spinbox_1)
         self.Hlayout.addWidget(self.current_label_2)
@@ -496,6 +496,7 @@ class Setupbox(QtWidgets.QFrame):
         except SerialException:
             self.status_text.setText("Connection failed")
             self.connect_button.setEnabled(True)
+            raise
         except PyboardError:
             self.status_text.setText("Connection failed")
             self.connect_button.setEnabled(True)
@@ -503,6 +504,7 @@ class Setupbox(QtWidgets.QFrame):
                 self.board.close()
             except AttributeError:
                 pass
+            raise
 
     def disconnect(self):
         """Disconnect from pyboard."""
@@ -524,6 +526,7 @@ class Setupbox(QtWidgets.QFrame):
 
     def start(self):
         """Start data acqusition"""
+        self.select_mode(self.acquisition_tab.mode_select.currentText())
         self.signals_plot.reset(self.board.sampling_rate)
         self.board.start()
         self.status = Status.RUNNING
@@ -546,7 +549,7 @@ class Setupbox(QtWidgets.QFrame):
         self.current_spinbox_2.setEnabled(False)
         self.record_button.setEnabled(False)
         self.subject_text.setEnabled(False)
-        self.record_clock.start()
+        self.signals_plot.record_clock.start()
         self.status = Status.RECORDING
         self.acquisition_tab.update_status()
 
@@ -567,7 +570,7 @@ class Setupbox(QtWidgets.QFrame):
         self.subject_text.setEnabled(True)
         self.connect_button.setEnabled(True)
         self.status_text.setText("Connected")
-        self.record_clock.stop()
+        self.signals_plot.record_clock.stop()
 
     # Configuration
 
@@ -583,7 +586,7 @@ class Setupbox(QtWidgets.QFrame):
 
     def select_mode(self, mode):
         """Set the acqusition mode."""
-        if self.board:
+        if self.board and not (self.board.mode == mode):
             self.board.set_mode(mode)
             self.acquisition_tab.rate_text.setText(str(self.board.sampling_rate))
             self.current_spinbox_1.setRange(0, self.board.max_LED_current)
@@ -594,6 +597,7 @@ class Setupbox(QtWidgets.QFrame):
             if self.current_spinbox_2.value() > self.board.max_LED_current:
                 self.current_spinbox_2.setValue(self.board.max_LED_current)
                 self.board.set_LED_current(LED_2_current=self.board.max_LED_current)
+            self.signals_plot.set_n_signals(self.board.n_analog_signals)
 
     def get_config(self):
         """Return the current configuration of the Setupbox as a Setup_config object"""
@@ -626,11 +630,9 @@ class Setupbox(QtWidgets.QFrame):
             self.status_text.setText("Error")
             raise
             return
-        if data:
-            new_ADC1, new_ADC2, new_DI1, new_DI2 = data
-            # Update plots.
-            self.signals_plot.update(new_ADC1, new_ADC2, new_DI1, new_DI2)
-            self.record_clock.update()
+        if data:  # Update plots.
+            new_ADCs, new_DIs = data
+            self.signals_plot.update(new_ADCs, new_DIs)
 
     def update_ports(self):
         """Update available ports in port_select combobox."""

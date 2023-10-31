@@ -23,6 +23,7 @@ class Acquisition_board(Pyboard):
     def __init__(self, port):
         """Open connection to pyboard and instantiate Photometry class on pyboard with
         provided parameters."""
+        self.mode = None
         self.data_file = None
         self.running = False
         self.LED_current = [0, 0]
@@ -45,20 +46,20 @@ class Acquisition_board(Pyboard):
     def set_mode(self, mode):
         # Set control channel mode.
         assert mode in [
-            "2 colour continuous",
-            "1 colour time div.",
-            "2 colour time div.",
-        ], "Invalid mode, value values: '2 colour continuous', '1 colour time div.' or '2 colour time div.'."
+            "2EX_2EM_continuous",
+            "2EX_1EM_pulsed",
+            "2EX_2EM_pulsed",
+            "3EX_2EM_pulsed",
+        ], "Invalid mode, value values: '2EX_2EM_continuous', '2EX_1EM_pulsed', '2EX_2EM_pulsed', or '3EX_2EM_pulsed'."
         self.mode = mode
-        if mode == "2 colour continuous":  # 2 channel GFP/RFP acquisition mode.
-            self.max_rate = hwc.max_sampling_rate["cont"]  # Maximum sampling rate allowed for this mode (Hz).
-            self.max_LED_current = hwc.max_LED_current["cont"]  # Maximum LED current allowed for this mode (mA).
-        elif mode in (
-            "1 colour time div.",
-            "2 colour time div.",
-        ):  # GCaMP and isosbestic using time division multiplexing.
-            self.max_rate = hwc.max_sampling_rate["tdiv"]
-            self.max_LED_current = hwc.max_LED_current["tdiv"]
+        self.n_analog_signals = 3 if mode == "3EX_2EM_pulsed" else 2
+        self.n_digital_signals = 1 if mode == "3EX_2EM_pulsed" else 2
+        self.pulsed_mode = mode.split("_")[-1] == "pulsed"
+        self.max_LED_current = hwc.max_sampling_rate["pulsed" if self.pulsed_mode else "continuous"]
+        if self.pulsed_mode:
+            self.max_rate = hwc.max_sampling_rate["pulsed"] // self.n_analog_signals
+        else:
+            self.max_rate = hwc.max_sampling_rate["continuous"]
         self.set_sampling_rate(self.max_rate)
         self.exec("p.set_mode('{}')".format(mode))
 
@@ -83,7 +84,9 @@ class Acquisition_board(Pyboard):
 
     def set_sampling_rate(self, sampling_rate):
         self.sampling_rate = int(min(sampling_rate, self.max_rate))
-        self.buffer_size = max(2, int(self.sampling_rate // (1000 / update_interval)) * 2)
+        self.buffer_size = max(
+            self.n_analog_signals, int(self.sampling_rate // (1000 / update_interval)) * self.n_analog_signals
+        )
         self.serial_chunk_size = (self.buffer_size + 2) * 2
         return self.sampling_rate
 
@@ -104,6 +107,8 @@ class Acquisition_board(Pyboard):
             "subject_ID": subject_ID,
             "date_time": date_time.isoformat(timespec="milliseconds"),
             "end_time": date_time.isoformat(timespec="milliseconds"),  # Overwritten on file close.
+            "n_analog_signals": self.n_analog_signals,
+            "n_digital_signals": self.n_digital_signals,
             "mode": self.mode,
             "sampling_rate": self.sampling_rate,
             "volts_per_division": hwc.ADC_volts_per_division,
@@ -120,7 +125,13 @@ class Acquisition_board(Pyboard):
             with open(self.json_path, "w") as headerfile:
                 headerfile.write(json.dumps(self.header_dict, sort_keys=True, indent=4))
             self.data_file = open(file_path, "w")
-            self.data_file.write("Analog1, Analog2, Digital1, Digital2\n")
+            self.data_file.write(
+                ", ".join(
+                    [f"Analog{a+1}" for a in range(self.n_analog_signals)]
+                    + [f"Digital{d+1}" for d in range(self.n_digital_signals)]
+                )
+                + "\n"
+            )
         return file_name
 
     def stop_recording(self):
@@ -175,17 +186,15 @@ class Acquisition_board(Pyboard):
             data = np.hstack(data_chunks)
             signal = data >> 1  # Analog signal is most significant 15 bits.
             digital = (data % 2) == 1  # Digital signal is least significant bit.
-            ADC1 = signal[::2]  # Alternating samples are signals 1 and 2.
-            ADC2 = signal[1::2]
-            DI1 = digital[::2]
-            DI2 = digital[1::2]
+            ADCs = [signal[a :: self.n_analog_signals] for a in range(self.n_analog_signals)]  # [ADC1, ..., ADCn]
+            DIs = [digital[d :: self.n_analog_signals] for d in range(self.n_digital_signals)]  # [DI1, ..., DIn]
             # Write data to disk.
             if self.data_file:
                 if self.file_type == "ppd":  # Binary data file.
                     self.data_file.write(data.tobytes())
                 else:  # CSV data file.
-                    np.savetxt(self.data_file, np.array([ADC1, ADC2, DI1, DI2], dtype=int).T, fmt="%d", delimiter=",")
-            return ADC1, ADC2, DI1, DI2
+                    np.savetxt(self.data_file, np.array(ADCs + DIs, dtype=int).T, fmt="%d", delimiter=",")
+            return ADCs, DIs
 
     # -----------------------------------------------------------------------
     # File transfer

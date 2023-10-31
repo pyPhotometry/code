@@ -3,6 +3,7 @@
 
 function data_struct = import_ppd(file_path)
 	% Function to import pyPhotometry binary data files into Matlab. 
+	% Currently only works for data files with 2 analog and 2 digital signals.
 	% Returns a struct with the following fields. 
 	%    'subject_ID'    - Subject ID
 	%    'date_time'     - Recording start date and time (ISO 8601 format string)

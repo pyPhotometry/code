@@ -26,17 +26,22 @@ class Signals_plot(QtWidgets.QWidget):
         self.axis.getPlotItem().setMenuEnabled(False)
         self.axis.disableAutoRange()
         self.legend = self.axis.addLegend(offset=(10, 10))
-        self.plot_1 = self.axis.plot(pen=pg.mkPen("g"), name="analog 1")
-        self.plot_2 = self.axis.plot(pen=pg.mkPen("r"), name="analog 2")
         self.axis.setYRange(-0.1, 3.3, padding=0)
         self.axis.setXRange(-history_dur, 0.2, padding=0)
         self.axis.setLimits(xMin=-history_dur, xMax=0.2)
 
         # Plotting classes
-        self.DI1_shader = Pulse_shader(self.axis, brush=(0, 0, 225, 80))
-        self.DI2_shader = Pulse_shader(self.axis, brush=(225, 225, 0, 80))
+        self.plots = [
+            self.axis.plot(pen=pg.mkPen("g"), name="analog 1"),
+            self.axis.plot(pen=pg.mkPen("r"), name="analog 2"),
+        ]
+        self.DI_shaders = [
+            Pulse_shader(self.axis, brush=(0, 0, 225, 80)),
+            Pulse_shader(self.axis, brush=(225, 225, 0, 80)),
+        ]
         self.event_triggered_plot = Event_triggered_plot(self)
         self.event_triggered_plot.axis.setVisible(False)
+        self.record_clock = Record_clock(self.axis)
 
         # Create controls
         self.yrange_label = QtWidgets.QLabel("Y range:")
@@ -87,40 +92,47 @@ class Signals_plot(QtWidgets.QWidget):
         self.vertical_layout.addWidget(self.event_triggered_plot.axis)
         self.setLayout(self.vertical_layout)
 
+    def set_n_signals(self, n_analog_signals):
+        if len(self.plots) == 2 and n_analog_signals == 3:
+            self.plots.append(self.axis.plot(pen=pg.mkPen("m"), name="analog 3"))
+        elif len(self.plots) == 3 and n_analog_signals == 2:
+            self.axis.removeItem(self.plots.pop(-1))
+
     def reset(self, sampling_rate):
         history_length = int(sampling_rate * history_dur)
         self.autoscale_next_update = False
-        self.ADC1 = Signal_history(history_length)
-        self.ADC2 = Signal_history(history_length)
-        self.DI1 = Signal_history(history_length, int)
-        self.DI2 = Signal_history(history_length, int)
+        self.ADCs = [
+            Signal_history(history_length),
+            Signal_history(history_length),
+            Signal_history(history_length),
+        ]
+        self.DIs = [
+            Signal_history(history_length, int),
+            Signal_history(history_length, int),
+        ]
         self.x = np.linspace(-history_dur, 0, history_length)  # X axis for timeseries plots.
-        self.DI1_shader.reset(self.DI1, self.x)
-        self.DI2_shader.reset(self.DI2, self.x)
+
+        self.DI_shaders[0].reset(self.DIs[0], self.x)
+        self.DI_shaders[1].reset(self.DIs[1], self.x)
         self.event_triggered_plot.reset(sampling_rate)
 
-    def update(self, new_ADC1, new_ADC2, new_DI1, new_DI2):
-        new_ADC1 = 3.3 * new_ADC1 / (1 << 15)  # Convert to Volts.
-        new_ADC2 = 3.3 * new_ADC2 / (1 << 15)
-        self.ADC1.update(new_ADC1)
-        self.ADC2.update(new_ADC2)
-        self.DI1.update(new_DI1)
-        self.DI2.update(new_DI2)
-        self.DI1_shader.update()
-        self.DI2_shader.update()
-        self.event_triggered_plot.update(len(new_ADC1))
-        if self.AC_mode:
-            # Plot signals with mean removed.
-            y1 = self.ADC1.history - np.nanmean(self.ADC1.history)
-            y2 = self.ADC2.history - np.nanmean(self.ADC2.history) - self.offset_spinbox.value() / 1000
-            self.plot_1.setData(self.x, y1)
-            self.plot_2.setData(self.x, y2)
-        else:
-            self.plot_1.setData(self.x, self.ADC1.history)
-            self.plot_2.setData(self.x, self.ADC2.history)
+    def update(self, new_ADCs, new_DIs):
+        new_ADCs = [3.3 * new_ADC / (1 << 15) for new_ADC in new_ADCs]  # Convert to Volts.
+        for i, new_ADC in enumerate(new_ADCs):
+            self.ADCs[i].update(new_ADC)
+            if self.AC_mode:  # Plot signals with mean removed.
+                y = self.ADCs[i].history - np.nanmean(self.ADCs[i].history) - i * self.offset_spinbox.value() / 1000
+            else:
+                y = self.ADCs[i].history
+            self.plots[i].setData(self.x, y)
+        for i, new_DI in enumerate(new_DIs):
+            self.DIs[i].update(new_DI)
+            self.DI_shaders[i].update()
+        self.event_triggered_plot.update(len(new_ADCs[0]))
         if self.autoscale_next_update:
             self.autoscale()
             self.autoscale_next_update = False
+        self.record_clock.update()
 
     def enable_disable_demean_mode(self):
         if self.demean_checkbox.isChecked():
@@ -214,11 +226,11 @@ class Event_triggered_plot:
 
     def update(self, new_data_len):
         # Update event triggered average plot.
-        trig_section = self.signals_plot.DI1.history[-self.window[1] - new_data_len - 1 : -self.window[1]]
+        trig_section = self.signals_plot.DIs[0].history[-self.window[1] - new_data_len - 1 : -self.window[1]]
         rising_edges = np.where(np.diff(trig_section) == 1)[0]
         for i, edge in enumerate(rising_edges):
             edge_ind = -self.window[1] - new_data_len - 1 + edge  # Position of edge in signal history.
-            ev_trig_sig = self.signals_plot.ADC1.history[edge_ind + self.window[0] : edge_ind + self.window[1]]
+            ev_trig_sig = self.signals_plot.ADCs[0].history[edge_ind + self.window[0] : edge_ind + self.window[1]]
             if self.average is None:  # First acquisition
                 self.average = ev_trig_sig
             else:  # Update averaged trace.

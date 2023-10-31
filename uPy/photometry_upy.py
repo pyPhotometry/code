@@ -19,9 +19,10 @@ class Photometry:
         self.ADC1 = pyb.ADC(hwc.pins["analog_1"])
         self.ADC2 = pyb.ADC(hwc.pins["analog_2"])
         self.DI1 = pyb.Pin(hwc.pins["digital_1"], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
-        self.DI2 = pyb.Pin(hwc.pins["digital_2"], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+        self.DI2 = None
         self.LED1 = pyb.DAC(1, bits=12)
         self.LED2 = pyb.DAC(2, bits=12)
+        self.LED3 = None
         self.ovs_buffer = array("H", [0] * 64)  # Oversampling buffer
         self.ovs_timer = pyb.Timer(2)  # Oversampling timer.
         self.sampling_timer = pyb.Timer(3)
@@ -30,13 +31,22 @@ class Photometry:
 
     def set_mode(self, mode):
         # Set the acquisition mode.
-        assert mode in ["2 colour continuous", "1 colour time div.", "2 colour time div."], "Invalid mode."
+        assert mode in ["2EX_2EM_continuous", "2EX_1EM_pulsed", "2EX_2EM_pulsed", "3EX_2EM_pulsed"], "Invalid mode."
         self.mode = mode
-        if mode == "2 colour continuous":
-            self.oversampling_rate = hwc.oversampling_rate["cont"]
+        if mode == "2EX_2EM_continuous":
+            self.oversampling_rate = hwc.oversampling_rate["continuous"]
         else:
-            self.oversampling_rate = hwc.oversampling_rate["tdiv"]
-        self.one_color = True if mode == "1 colour time div." else False
+            self.oversampling_rate = hwc.oversampling_rate["pulsed"]
+        if self.mode == "3EX_2EM_pulsed":  # Use Digital_2 as LED output.
+            self.LED3 = pyb.Pin(hwc.pins["digital_2"], pyb.Pin.OUT, pyb.Pin.PULL_DOWN)
+            self.DI2 = None
+            self.n_analog_signals = 3
+            self.n_digital_signals = 1
+        else:  # Use Digital_2 as digital input.
+            self.DI2 = pyb.Pin(hwc.pins["digital_2"], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+            self.LED3 = None
+            self.n_digital_signals = 2
+            self.n_analog_signals = 2
 
     def set_LED_current(self, LED_1_current=None, LED_2_current=None):
         # Set the LED current.
@@ -45,14 +55,14 @@ class Photometry:
                 self.LED_1_value = 0
             else:
                 self.LED_1_value = int(hwc.LED_calibration["slope"] * LED_1_current + hwc.LED_calibration["offset"])
-            if self.running and (self.mode == "2 colour continuous"):
+            if self.running and (self.mode == "2EX_2EM_continuous"):
                 self.LED1.write(self.LED_1_value)
         if LED_2_current is not None:
             if LED_2_current == 0:
                 self.LED_2_value = 0
             else:
                 self.LED_2_value = int(hwc.LED_calibration["slope"] * LED_2_current + hwc.LED_calibration["offset"])
-            if self.running and (self.mode == "2 colour continuous"):
+            if self.running and (self.mode == "2EX_2EM_continuous"):
                 self.LED2.write(self.LED_2_value)
 
     def start(self, sampling_rate, buffer_size):
@@ -75,14 +85,14 @@ class Photometry:
         self.usb_serial.setinterrupt(-1)  # Disable serial interrupt.
         gc.collect()
         gc.disable()
-        if self.mode == "2 colour continuous":
+        if self.mode == "2EX_2EM_continuous":
             self.sampling_timer.init(freq=sampling_rate)
-            self.sampling_timer.callback(self.cont_2_col_ISR)
+            self.sampling_timer.callback(self.continuous_ISR)
             self.LED1.write(self.LED_1_value)
             self.LED2.write(self.LED_2_value)
         else:
-            self.sampling_timer.init(freq=sampling_rate * 2)
-            self.sampling_timer.callback(self.time_div_ISR)
+            self.sampling_timer.init(freq=sampling_rate * self.n_analog_signals)
+            self.sampling_timer.callback(self.pulsed_ISR)
         while True:
             if self.buffer_ready:
                 self._send_buffer()
@@ -107,7 +117,7 @@ class Photometry:
         gc.enable()
 
     @micropython.native
-    def cont_2_col_ISR(self, t):
+    def continuous_ISR(self, t):
         # Interrupt service routine for 2 color continous acquisition mode.
         self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)  # Read sample of analog 1.
         self.sample = sum(self.ovs_buffer) >> 3
@@ -124,36 +134,51 @@ class Photometry:
             self.buffer_ready = True
 
     @micropython.native
-    def time_div_ISR(self, t):
-        # Interrupt service routine for time division + baseline subtraction acquisition
-        # modes.
-        if self.write_ind % 2:  # Odd samples are LED 2 illumination.
-            if self.one_color:  # Same analog input read for LEDs 1 and 2.
-                self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
-            else:  # Different analog inputs read for LEDs 1 and 2.
-                self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
-            self.LED2.write(self.LED_2_value)
-        else:  # Even samples are LED 1 illumination.
+    def pulsed_ISR(self, t):
+        # Interrupt service routine for pulsed acquisition modes.
+
+        # Read baseline, turn on LED.
+        if (self.write_ind % self.n_analog_signals) == 0:  # Photoreciever=1, LED=1.
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
             self.LED1.write(self.LED_1_value)
-        self.baseline = sum(self.ovs_buffer) >> 3
-        pyb.udelay(300)  # Wait before reading ADC (us).
-        # Acquire sample, subtract baseline, store in buffer.
-        if self.write_ind % 2:
-            if self.one_color:
+        elif (self.write_ind % self.n_analog_signals) == 1:
+            if self.mode == "2EX_1EM_pulsed":  # Photoreciever=1, LED=2.
                 self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
-            else:
+                self.LED2.write(self.LED_1_value)
+            else:  # Photoreciever=2, LED=2.
                 self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
-            self.LED2.write(0)
-            self.dig_sample = self.DI2.value()
-        else:
+                self.LED2.write(self.LED_1_value)
+        elif (self.write_ind % self.n_analog_signals) == 2:  # Photoreciever=1, LED=3.
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
-            self.LED1.write(0)
+            self.LED3.value(1)
+        self.baseline = sum(self.ovs_buffer) >> 3
+
+        pyb.udelay(300)  # Wait before reading ADC (us).
+
+        # Read sample, turn off LED.
+        if (self.write_ind % self.n_analog_signals) == 0:  # Photoreciever=1, LED=1.
+            self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
             self.dig_sample = self.DI1.value()
+            self.LED1.write(0)
+        elif (self.write_ind % self.n_analog_signals) == 1:
+            if self.mode == "2EX_1EM_pulsed":  # Photoreciever=1, LED=2.
+                self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
+                self.LED2.write(0)
+            else:  # Photoreciever=2, LED=2.
+                self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
+                self.dig_sample = False if self.mode == "3EX_2EM_pulsed" else self.DI2.value()
+                self.LED2.write(0)
+        elif (self.write_ind % self.n_analog_signals) == 2:  # Photoreciever=1, LED=3.
+            self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
+            self.LED3.value(0)
+            self.dig_sample = False
         self.sample = sum(self.ovs_buffer) >> 3
+
+        # Subtract baseline and  store sample in buffer.
         self.sample = max(self.sample - self.baseline, 0)
         self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.dig_sample
-        # Update write index and switch buffers if full.
+
+        # Update write index and switch buffers if buffer full.
         self.write_ind = (self.write_ind + 1) % self.buffer_size
         if self.write_ind == 0:  # Buffer full, switch buffers.
             self.write_buf = 1 - self.write_buf
