@@ -144,10 +144,10 @@ class Photometry:
         elif (self.write_ind % self.n_analog_signals) == 1:
             if self.mode == "2EX_1EM_pulsed":  # Photoreciever=1, LED=2.
                 self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
-                self.LED2.write(self.LED_1_value)
+                self.LED2.write(self.LED_2_value)
             else:  # Photoreciever=2, LED=2.
                 self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
-                self.LED2.write(self.LED_1_value)
+                self.LED2.write(self.LED_2_value)
         elif (self.write_ind % self.n_analog_signals) == 2:  # Photoreciever=1, LED=3.
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
             self.LED3.value(1)
