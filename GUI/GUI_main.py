@@ -7,7 +7,6 @@ import ctypes
 import traceback
 import logging
 from pyqtgraph.Qt import QtGui, QtWidgets, QtCore
-from serial.tools import list_ports
 
 import config.GUI_config as GUI_config
 from GUI.acquisition_tab import Acquisition_tab
@@ -28,7 +27,6 @@ class GUI_main(QtWidgets.QMainWindow):
 
         # Variables
         self.refresh_interval = 1000  # Interval to refresh tasks and ports when not running (ms).
-        self.available_ports = []
         self.current_tab_ind = 0  # Which tab is currently selected.
 
         # Widgets.
@@ -61,12 +59,9 @@ class GUI_main(QtWidgets.QMainWindow):
         self.refresh_timer.start(self.refresh_interval)
 
     def refresh(self):
-        # Called regularly while not running, scan serial ports for
-        # connected boards and update ports list if changed.
-        ports = set([c[0] for c in list_ports.comports() if ("Pyboard" in c[1]) or ("USB Serial Device" in c[1])])
-        self.ports_changed = not ports == self.available_ports
-        self.available_ports = ports
+        # Called regularly while not running to update tabs.
         self.acquisition_tab.refresh()
+        self.setups_tab.refresh()
 
     def tab_changed(self, new_tab_ind):
         """Called whenever the active tab is changed."""

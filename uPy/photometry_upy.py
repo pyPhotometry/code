@@ -28,6 +28,7 @@ class Photometry:
         self.sampling_timer = pyb.Timer(3)
         self.usb_serial = pyb.USB_VCP()
         self.running = False
+        self.unique_id = int.from_bytes(pyb.unique_id(), "little")
 
     def set_mode(self, mode):
         # Set the acquisition mode.

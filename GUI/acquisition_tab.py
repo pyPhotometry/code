@@ -10,14 +10,13 @@ from enum import Enum
 import config.GUI_config as GUI_config
 from GUI.acquisition_board import Acquisition_board
 from GUI.pyboard import PyboardError
-from GUI.plotting import Signals_plot, Record_clock
-from GUI.utility import set_cbox_item
+from GUI.plotting import Signals_plot
 
 # ----------------------------------------------------------------------------------------
 #  Acquisition_tab
 # ----------------------------------------------------------------------------------------
 
-config_save_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments")
+experiment_config_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments")
 
 
 @dataclass
@@ -47,6 +46,14 @@ class Status(Enum):
     MIXED_NOTRUNNING = 5
 
 
+def set_cbox_item(cbox, item_name):
+    """Set the selected item on a combobox by passing the item name.  If name is not
+    valid then selected item is not changed."""
+    index = cbox.findText(item_name, QtCore.Qt.MatchFlag.MatchFixedString)
+    if index >= 0:
+        cbox.setCurrentIndex(index)
+
+
 class Acquisition_tab(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(QtWidgets.QWidget, self).__init__(parent)
@@ -69,7 +76,7 @@ class Acquisition_tab(QtWidgets.QWidget):
         self.load_button.clicked.connect(self.load_config)
         self.setups_label = QtWidgets.QLabel("Setups:")
         self.setups_spinbox = QtWidgets.QSpinBox()
-        self.setups_spinbox.setFixedWidth(50)
+        self.setups_spinbox.setFixedWidth(40)
         self.setups_spinbox.setRange(1, 9)
         self.setups_spinbox.valueChanged.connect(self.add_remove_setups)
 
@@ -343,19 +350,14 @@ class Acquisition_tab(QtWidgets.QWidget):
 
     def save_config(self):
         """Save tab configuration as a json file"""
-        savefilename = QtWidgets.QFileDialog.getSaveFileName(
-            self,
-            "",
-            config_save_dir,
-            ("JSON files (*.json)"),
-        )[0]
-        with open(savefilename, "w", encoding="utf-8") as save_file:
+        filename = QtWidgets.QFileDialog.getSaveFileName(self, "", experiment_config_dir, ("JSON files (*.json)"))[0]
+        with open(filename, "w", encoding="utf-8") as save_file:
             save_file.write(json.dumps(asdict(self.get_config()), sort_keys=True, indent=4))
 
     def load_config(self):
         """Load tab configuration from json file"""
-        loadfilename = QtWidgets.QFileDialog.getOpenFileName(self, "", config_save_dir, ("JSON files (*.json)"))[0]
-        with open(loadfilename, "r", encoding="utf-8") as load_file:
+        filename = QtWidgets.QFileDialog.getOpenFileName(self, "", experiment_config_dir, ("JSON files (*.json)"))[0]
+        with open(filename, "r", encoding="utf-8") as load_file:
             multitab_config = Multitab_config(**json.loads(load_file.read()))
         self.set_config(multitab_config)
 
@@ -363,9 +365,10 @@ class Acquisition_tab(QtWidgets.QWidget):
 
     def refresh(self):
         """Called regularly when no setups are running"""
-        if self.GUI_main.ports_changed:
+        if self.GUI_main.setups_tab.setups_changed:
+            setup_labels = self.GUI_main.setups_tab.get_setup_labels()
             for box in self.setupboxes:
-                box.update_ports()
+                box.update_setups(setup_labels)
 
     def process_data(self):
         """Called regularly while setups are running to process new data."""
@@ -415,10 +418,10 @@ class Setupbox(QtWidgets.QFrame):
         self.subject_text = QtWidgets.QLineEdit(self.subject_ID)
         self.subject_text.textChanged.connect(self.test_data_path)
 
-        self.current_label_1 = QtWidgets.QLabel("LED 1 current (mA):")
+        self.current_label_1 = QtWidgets.QLabel("LED current (mA) Ch1:")
         self.current_spinbox_1 = QtWidgets.QSpinBox()
         self.current_spinbox_1.setFixedWidth(50)
-        self.current_label_2 = QtWidgets.QLabel("LED 2 current (mA):")
+        self.current_label_2 = QtWidgets.QLabel("Ch2:")
         self.current_spinbox_2 = QtWidgets.QSpinBox()
         self.current_spinbox_2.setFixedWidth(50)
         self.current_spinbox_1.setValue(GUI_config.default_LED_current[0])
@@ -465,7 +468,7 @@ class Setupbox(QtWidgets.QFrame):
         # Initial setup.
 
         self.disconnect()  # Set initial state as disconnected.
-        self.update_ports()
+        # self.update_setups()
 
     # Button and box methods
 
@@ -475,7 +478,9 @@ class Setupbox(QtWidgets.QFrame):
             self.status_text.setText("Connecting")
             self.connect_button.setEnabled(False)
             self.acquisition_tab.GUI_main.app.processEvents()
-            self.board = Acquisition_board(self.port_select.currentText())
+            self.board = Acquisition_board(
+                self.acquisition_tab.GUI_main.setups_tab.get_setup_port(self.port_select.currentText())
+            )
             self.select_mode(self.acquisition_tab.mode_select.currentText())
             self.port_select.setEnabled(False)
             self.subject_text.setEnabled(True)
@@ -523,6 +528,8 @@ class Setupbox(QtWidgets.QFrame):
         self.start_button.setEnabled(False)
         self.record_button.setEnabled(False)
         self.stop_button.setEnabled(False)
+        self.current_spinbox_1.setEnabled(False)
+        self.current_spinbox_2.setEnabled(False)
 
     def start(self):
         """Start data acqusition"""
@@ -634,10 +641,10 @@ class Setupbox(QtWidgets.QFrame):
             new_ADCs, new_DIs = data
             self.signals_plot.update(new_ADCs, new_DIs)
 
-    def update_ports(self):
+    def update_setups(self, setup_labels):
         """Update available ports in port_select combobox."""
         self.port_select.clear()
-        self.port_select.addItems(sorted(self.acquisition_tab.GUI_main.available_ports))
+        self.port_select.addItems(setup_labels)
 
     # Cleanup.
 

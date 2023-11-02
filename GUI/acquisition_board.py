@@ -28,6 +28,7 @@ class Acquisition_board(Pyboard):
         self.running = False
         self.LED_current = [0, 0]
         self.file_type = None
+        self.port = port
         super().__init__(port, baudrate=115200)
         self.enter_raw_repl()  # Reset pyboard.
         # Transfer firmware if not already on board.
@@ -196,6 +197,10 @@ class Acquisition_board(Pyboard):
                     np.savetxt(self.data_file, np.array(ADCs + DIs, dtype=int).T, fmt="%d", delimiter=",")
             return ADCs, DIs
 
+    def unique_id(self):
+        """Return the hardware ID of the pyboard."""
+        return int(self.eval("p.unique_id").decode())
+
     # -----------------------------------------------------------------------
     # File transfer
     # -----------------------------------------------------------------------
@@ -269,3 +274,15 @@ def _receive_file(file_path, file_size):
                     f.write(buf_mv[:bytes_read])
     except:
         usb.write(b"ER")
+
+
+def get_unique_id(port):
+    """Get the unique id of pyboard without instantiating an Acquisition_board object."""
+    try:
+        board = Pyboard(port)
+        board.enter_raw_repl()
+        unique_id = int(board.eval("int.from_bytes(pyb.unique_id(), 'little')").decode())
+        board.close()
+    except:
+        unique_id = None
+    return unique_id
