@@ -4,7 +4,7 @@ from dataclasses import dataclass, asdict
 from serial.tools import list_ports
 from pyqtgraph.Qt import QtCore, QtWidgets
 
-from GUI.acquisition_board import get_unique_id
+from GUI.acquisition_board import get_board_info, set_flashdrive_enabled
 
 setups_save_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config")
 
@@ -19,11 +19,12 @@ class Setups_tab(QtWidgets.QWidget):
         self.saved_setups = self.load_setups_from_json()  # [Setup_info]
         self.setups_changed = True
 
-        self.setups_table = QtWidgets.QTableWidget(0, 3, parent=self)
-        self.setups_table.setHorizontalHeaderLabels(["Serial port", "Hardware ID", "Name"])
+        self.setups_table = QtWidgets.QTableWidget(0, 4, parent=self)
+        self.setups_table.setHorizontalHeaderLabels(["Serial port", "Hardware ID", "Name", "Flashdrive"])
         self.setups_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.setups_table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.setups_table.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.setups_table.horizontalHeader().setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.setups_table.verticalHeader().setVisible(False)
         self.vertical_layout = QtWidgets.QVBoxLayout(self)
         self.vertical_layout.addWidget(self.setups_table)
@@ -44,26 +45,30 @@ class Setups_tab(QtWidgets.QWidget):
                 return next(si for si in self.saved_setups if si.unique_id == unique_id)
             except StopIteration:
                 pass
-        elif port:
-            try:  # Get setup with matching port if it does not have a unique id.
-                return next(si for si in self.saved_setups if si.port == port)
+        if port:
+            try:  # Get setup with matching port if match based on unique ID is ambiguous.
+                return next(
+                    si for si in self.saved_setups if si.port == port and (si.unique_id == None or unique_id == None)
+                )
             except StopIteration:
                 pass
         return None
 
-    def setup_name_edited(self, setup):
-        """Called when a setups name is edited to update saved setups."""
+    def update_saved_setups(self, setup):
+        """Called when a setups attribute is modified to update saved setups."""
         saved_setup = self.get_saved_setup(unique_id=setup.unique_id, port=setup.port)
+        setup_info = setup.get_info()
+        if setup_info == saved_setup:
+            return
         if saved_setup:
-            if not setup.name:  # Remove saved setup.
-                self.saved_setups.remove(saved_setup)
-            else:  # Update name.
-                saved_setup.name = setup.name
-        else:  # Create new saved setup.
+            self.saved_setups.remove(saved_setup)
+        if setup.name:
             self.saved_setups.append(setup.get_info())
-        self.setups_changed = True
-        with open(self.save_path, "w", encoding="utf-8") as f:
-            f.write(json.dumps([asdict(setup_info) for setup_info in self.saved_setups], indent=4))
+        if self.saved_setups:
+            with open(self.save_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps([asdict(setup_info) for setup_info in self.saved_setups], indent=4))
+        elif os.path.exists(self.save_path):
+            os.remove(self.save_path)
 
     def refresh(self):
         """Called regularly when no task running to update tab with currently
@@ -72,10 +77,18 @@ class Setups_tab(QtWidgets.QWidget):
         if not ports == self.setups.keys():
             # Add any newly connected setups.
             for port in set(ports) - set(self.setups.keys()):
-                unique_id = get_unique_id(port)
+                unique_id, flashdrive_enabled = get_board_info(port)
                 saved_setup = self.get_saved_setup(unique_id=unique_id, port=port)
-                name = saved_setup.name if saved_setup else None
-                self.setups[port] = Setup(self, port=port, unique_id=unique_id, name=name)
+                if saved_setup:
+                    saved_setup.port = port  # Port may have changed since saved value.
+                    if unique_id:  # May be missing from saved setup.
+                        saved_setup.unique_id = unique_id
+                    self.setups[port] = Setup(self, flashdrive_enabled=flashdrive_enabled, **asdict(saved_setup))
+                else:
+                    self.setups[port] = Setup(
+                        self, port=port, unique_id=unique_id, flashdrive_enabled=flashdrive_enabled
+                    )
+                self.update_saved_setups(self.setups[port])
             # Remove any unplugged setups.
             for port in set(self.setups.keys()) - set(ports):
                 self.setups[port].unplugged()
@@ -101,11 +114,12 @@ class Setup_info:
 
 
 class Setup:
-    def __init__(self, setups_tab, port=None, name=None, unique_id=None):
+    def __init__(self, setups_tab, port=None, name=None, unique_id=None, flashdrive_enabled=None):
         self.setups_tab = setups_tab
         self.port = port
         self.name = name
         self.unique_id = unique_id
+        self.flashdrive_enabled = flashdrive_enabled
         self.label = self.name if self.name else self.port
 
         # GUI elements.
@@ -123,10 +137,14 @@ class Setup:
         if self.unique_id:
             self.id_edit.setText(str(self.unique_id)[:6])
 
+        self.flashdrive_button = QtWidgets.QPushButton("Disable" if self.flashdrive_enabled else "Enable")
+        self.flashdrive_button.clicked.connect(self.enable_disable_flashdrive)
+
         self.setups_tab.setups_table.insertRow(0)
         self.setups_tab.setups_table.setItem(0, 0, self.port_item)
         self.setups_tab.setups_table.setCellWidget(0, 1, self.id_edit)
         self.setups_tab.setups_table.setCellWidget(0, 2, self.name_edit)
+        self.setups_tab.setups_table.setCellWidget(0, 3, self.flashdrive_button)
 
     def name_changed(self):
         """Called when name text of setup is edited."""
@@ -136,7 +154,8 @@ class Setup:
             self.name_edit.setStyleSheet("color: grey;")
         else:
             self.name_edit.setStyleSheet("color: black;")
-        self.setups_tab.setup_name_edited(self)
+        self.setups_tab.update_saved_setups(self)
+        self.setups_tab.setups_changed = True
 
     def unplugged(self):
         """Called when a board is unplugged from computer to remove row from setups table."""
@@ -144,3 +163,13 @@ class Setup:
 
     def get_info(self):
         return Setup_info(name=self.name, unique_id=self.unique_id, port=self.port)
+
+    def enable_disable_flashdrive(self):
+        """Enable/disable the boards flashdrive and update button text."""
+        if self.flashdrive_enabled:
+            if set_flashdrive_enabled(self.port, False):
+                self.flashdrive_enabled = False
+                self.flashdrive_button.setText("Enable")
+        elif set_flashdrive_enabled(self.port, True):
+            self.flashdrive_enabled = False
+            self.flashdrive_button.setText("Disable")

@@ -93,7 +93,7 @@ class Acquisition_tab(QtWidgets.QWidget):
 
         self.mode_label = QtWidgets.QLabel("Mode:")
         self.mode_select = QtWidgets.QComboBox()
-        self.mode_select.addItems(["2EX_2EM_continuous", "2EX_1EM_pulsed", "2EX_2EM_pulsed", "3EX_2EM_pulsed"])
+        self.mode_select.addItems(GUI_config.available_acquisition_modes)
         set_cbox_item(self.mode_select, GUI_config.default_acquisition_mode)
         self.mode_select.textActivated[str].connect(self.select_mode)
         self.rate_label = QtWidgets.QLabel("Sampling rate (Hz):")

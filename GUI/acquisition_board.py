@@ -276,13 +276,31 @@ def _receive_file(file_path, file_size):
         usb.write(b"ER")
 
 
-def get_unique_id(port):
+def get_board_info(port):
     """Get the unique id of pyboard without instantiating an Acquisition_board object."""
     try:
         board = Pyboard(port)
         board.enter_raw_repl()
         unique_id = int(board.eval("int.from_bytes(pyb.unique_id(), 'little')").decode())
+        flashdrive_enabled = "MSC" in board.eval("pyb.usb_mode()").decode()
         board.close()
     except:
         unique_id = None
-    return unique_id
+        flashdrive_enabled = None
+    return unique_id, flashdrive_enabled
+
+
+def set_flashdrive_enabled(port, enable):
+    """Enable/disable the flashdrive on pyboard at specified port, return True is set OK else False."""
+    # try:
+    board = Pyboard(port)
+    board.enter_raw_repl()
+    if enable:
+        bootstr = "import pyb\npyb.usb_mode('VCP+MSC')"
+    else:
+        bootstr = "import pyb\npyb.usb_mode('VCP')"
+    board.exec(f"with open('boot.py','w') as f: f.write({repr(bootstr)})")
+    board.exec_raw_no_follow("pyb.hard_reset()")
+    board.close()
+    # except PyboardError:
+    #    return False
