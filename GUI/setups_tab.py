@@ -103,7 +103,10 @@ class Setups_tab(QtWidgets.QWidget):
 
     def get_setup_port(self, label):
         """Get the serial port given the setup label."""
-        return next(setup.port for setup in self.setups.values() if setup.label == label)
+        try:
+            return next(setup.port for setup in self.setups.values() if setup.label == label)
+        except StopIteration:
+            return False
 
 
 @dataclass

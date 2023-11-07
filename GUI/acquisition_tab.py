@@ -57,8 +57,12 @@ def set_cbox_item(cbox, item_name):
 def cbox_update_options(cbox, options):
     """Update the options available in a qcombobox without changing the selection."""
     selected = str(cbox.currentText())
-    available = sorted(list(set([selected] + options)), key=str.lower)
-    i = available.index(selected)
+    if selected:
+        available = sorted(list(set([selected] + options)), key=str.lower)
+        i = available.index(selected)
+    else:  # cbox is currently empty.
+        available = sorted(list(options), key=str.lower)
+        i = 0
     cbox.clear()
     cbox.addItems(available)
     cbox.setCurrentIndex(i)
@@ -207,6 +211,7 @@ class Acquisition_tab(QtWidgets.QWidget):
             self.setupboxes[0].signals_plot.etp_checkbox.setChecked(True)
         else:
             self.setupboxes[0].signals_plot.etp_checkbox.setChecked(False)
+        self.update_status()
 
     # Methods to update the UI
 
@@ -399,6 +404,7 @@ class Setupbox(QtWidgets.QFrame):
         super(QtWidgets.QFrame, self).__init__(parent=parent)
         self.setFrameStyle(QtWidgets.QFrame.Shape.StyledPanel | QtWidgets.QFrame.Shadow.Plain)
         self.acquisition_tab = self.parent()
+        self.setups_tab = self.acquisition_tab.GUI_main.setups_tab
 
         # Variables
 
@@ -416,6 +422,7 @@ class Setupbox(QtWidgets.QFrame):
         self.status_text.setFixedWidth(105)
 
         self.port_select = QtWidgets.QComboBox()
+        self.port_select.setPlaceholderText("Select setup")
         self.port_select.setFixedWidth(100)
         self.connect_button = QtWidgets.QPushButton("Connect")
         self.connect_button.setIcon(QtGui.QIcon("GUI/icons/connect.svg"))
@@ -478,19 +485,22 @@ class Setupbox(QtWidgets.QFrame):
         # Initial setup.
 
         self.disconnect()  # Set initial state as disconnected.
-        self.update_setups(self.acquisition_tab.GUI_main.setups_tab.get_setup_labels())
+        self.update_setups(self.setups_tab.get_setup_labels())
+        self.select_first_available_setup()
 
     # Button and box methods
 
     def connect(self):
         """Connect to a pyboard."""
         try:
+            serial_port = self.setups_tab.get_setup_port(self.port_select.currentText())
+            if not serial_port:
+                self.status_text.setText("Connection failed")
+                return
             self.status_text.setText("Connecting")
             self.connect_button.setEnabled(False)
             self.acquisition_tab.GUI_main.app.processEvents()
-            self.board = Acquisition_board(
-                self.acquisition_tab.GUI_main.setups_tab.get_setup_port(self.port_select.currentText())
-            )
+            self.board = Acquisition_board(serial_port)
             self.select_mode(self.acquisition_tab.mode_select.currentText())
             self.port_select.setEnabled(False)
             self.subject_text.setEnabled(True)
@@ -654,6 +664,16 @@ class Setupbox(QtWidgets.QFrame):
     def update_setups(self, setup_labels):
         """Update available ports in port_select combobox."""
         cbox_update_options(self.port_select, setup_labels)
+
+    def select_first_available_setup(self):
+        """Set the port_select to the first available setup given setups assiged to other setupboxes."""
+        assigned_setups = [box.port_select.currentText() for box in self.acquisition_tab.setupboxes if box is not self]
+        try:
+            set_cbox_item(
+                self.port_select, next(sl for sl in self.setups_tab.get_setup_labels() if sl not in assigned_setups)
+            )
+        except StopIteration:
+            self.port_select.setCurrentIndex(-1)
 
     # Cleanup.
 
