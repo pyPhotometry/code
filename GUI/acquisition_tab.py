@@ -54,6 +54,16 @@ def set_cbox_item(cbox, item_name):
         cbox.setCurrentIndex(index)
 
 
+def cbox_update_options(cbox, options):
+    """Update the options available in a qcombobox without changing the selection."""
+    selected = str(cbox.currentText())
+    available = sorted(list(set([selected] + options)), key=str.lower)
+    i = available.index(selected)
+    cbox.clear()
+    cbox.addItems(available)
+    cbox.setCurrentIndex(i)
+
+
 class Acquisition_tab(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(QtWidgets.QWidget, self).__init__(parent)
@@ -402,11 +412,11 @@ class Setupbox(QtWidgets.QFrame):
 
         self.status_text = QtWidgets.QLineEdit("Not connected")
         self.status_text.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        # self.status_text.setStyleSheet("background-color:rgb(210, 210, 210);")
         self.status_text.setReadOnly(True)
         self.status_text.setFixedWidth(105)
 
         self.port_select = QtWidgets.QComboBox()
+        self.port_select.setFixedWidth(100)
         self.connect_button = QtWidgets.QPushButton("Connect")
         self.connect_button.setIcon(QtGui.QIcon("GUI/icons/connect.svg"))
         self.connect_button.setFixedWidth(110)
@@ -468,7 +478,7 @@ class Setupbox(QtWidgets.QFrame):
         # Initial setup.
 
         self.disconnect()  # Set initial state as disconnected.
-        # self.update_setups()
+        self.update_setups(self.acquisition_tab.GUI_main.setups_tab.get_setup_labels())
 
     # Button and box methods
 
@@ -643,8 +653,7 @@ class Setupbox(QtWidgets.QFrame):
 
     def update_setups(self, setup_labels):
         """Update available ports in port_select combobox."""
-        self.port_select.clear()
-        self.port_select.addItems(setup_labels)
+        cbox_update_options(self.port_select, setup_labels)
 
     # Cleanup.
 

@@ -33,8 +33,8 @@ class GUI_main(QtWidgets.QMainWindow):
         self.tab_widget = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_widget)
 
-        self.acquisition_tab = Acquisition_tab(self)
         self.setups_tab = Setups_tab(self)
+        self.acquisition_tab = Acquisition_tab(self)
 
         self.tab_widget.addTab(self.acquisition_tab, "Acquisition")
         self.tab_widget.addTab(self.setups_tab, "Setups")
