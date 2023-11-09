@@ -157,7 +157,10 @@ class Signals_plot(QtWidgets.QWidget):
         self.axis.autoRange(padding=0.1)
 
     def fullscale(self):
-        """Set the Y axis ranges to show the full signal range."""
+        """Set the Y axis ranges to show the full signal range, turn of Demean mode if on."""
+        if self.AC_mode:
+            self.demean_checkbox.setChecked(False)
+            self.autoscale_next_update = False
         self.axis.setYRange(-0.1, 3.3, padding=0)
 
     def scale_y(self, s):
