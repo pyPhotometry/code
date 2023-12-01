@@ -1,19 +1,18 @@
-import os
 import json
+from pathlib import Path
 from dataclasses import dataclass, asdict
 from serial.tools import list_ports
 from pyqtgraph.Qt import QtCore, QtWidgets
 
+from GUI.dir_paths import config_dir
 from GUI.acquisition_board import get_board_info, set_flashdrive_enabled
-
-setups_save_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config")
 
 
 class Setups_tab(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(QtWidgets.QWidget, self).__init__(parent)
         self.GUI_main = parent
-        self.save_path = os.path.join(setups_save_dir, "setups.json")
+        self.save_path = Path(config_dir, "setups.json")
 
         self.setups = {}  # {port: Setup} # Currently connected setups.
         self.saved_setups = self.load_setups_from_json()  # [Setup_info]
@@ -31,8 +30,8 @@ class Setups_tab(QtWidgets.QWidget):
         self.vertical_layout.addStretch()
 
     def load_setups_from_json(self):
-        if os.path.exists(self.save_path):
-            with open(self.save_path, "r", encoding="utf-8") as f:
+        if self.save_path.exists():
+            with self.save_path.open("r", encoding="utf-8") as f:
                 setups_from_json = [Setup_info(**si_dict) for si_dict in json.loads(f.read())]
         else:
             setups_from_json = []
@@ -67,8 +66,8 @@ class Setups_tab(QtWidgets.QWidget):
         if self.saved_setups:
             with open(self.save_path, "w", encoding="utf-8") as f:
                 f.write(json.dumps([asdict(setup_info) for setup_info in self.saved_setups], indent=4))
-        elif os.path.exists(self.save_path):
-            os.remove(self.save_path)
+        else:  # Delete saved setups file.
+            self.save_path.unlink(missing_ok=True)
 
     def refresh(self):
         """Called regularly when no task running to update tab with currently

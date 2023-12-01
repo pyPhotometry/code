@@ -1,5 +1,5 @@
-import os
 import json
+from pathlib import Path
 from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
 from pyqtgraph.Qt.QtWidgets import QFrame
 from serial import SerialException
@@ -11,12 +11,11 @@ import config.GUI_config as GUI_config
 from GUI.acquisition_board import Acquisition_board
 from GUI.pyboard import PyboardError
 from GUI.plotting import Signals_plot
+from GUI.dir_paths import experiments_dir, data_dir
 
 # ----------------------------------------------------------------------------------------
 #  Acquisition_tab
 # ----------------------------------------------------------------------------------------
-
-experiment_config_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments")
 
 
 @dataclass
@@ -78,7 +77,7 @@ class Acquisition_tab(QtWidgets.QWidget):
         self.control_button_action = None
         self.setupboxes = []
         self.n_setups = 0
-        self.data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+        self.data_dir = data_dir
 
         # Config groupbox
 
@@ -127,7 +126,7 @@ class Acquisition_tab(QtWidgets.QWidget):
         self.datadir_groupbox = QtWidgets.QGroupBox("Data directory")
 
         self.data_dir_label = QtWidgets.QLabel("Data dir:")
-        self.data_dir_text = QtWidgets.QLineEdit(self.data_dir)
+        self.data_dir_text = QtWidgets.QLineEdit(str(self.data_dir))
         self.data_dir_button = QtWidgets.QPushButton("")
         self.data_dir_button.setIcon(QtGui.QIcon("GUI/icons/folder.svg"))
         self.data_dir_button.setFixedWidth(30)
@@ -332,12 +331,12 @@ class Acquisition_tab(QtWidgets.QWidget):
     def select_data_dir(self):
         """Open a dialog to select the data directory"""
         self.data_dir_text.setText(
-            QtWidgets.QFileDialog.getExistingDirectory(self, "Select data folder", self.data_dir)
+            QtWidgets.QFileDialog.getExistingDirectory(self, "Select data folder", str(self.data_dir))
         )
 
     def test_data_path(self):
         """Test whether all setups have a valid data path."""
-        self.data_dir = self.data_dir_text.text()
+        self.data_dir = Path(self.data_dir_text.text())
         return True if all([box.test_data_path() for box in self.setupboxes]) else False
 
     def get_config(self):
@@ -365,13 +364,13 @@ class Acquisition_tab(QtWidgets.QWidget):
 
     def save_config(self):
         """Save tab configuration as a json file"""
-        filename = QtWidgets.QFileDialog.getSaveFileName(self, "", experiment_config_dir, ("JSON files (*.json)"))[0]
+        filename = QtWidgets.QFileDialog.getSaveFileName(self, "", str(experiments_dir), ("JSON files (*.json)"))[0]
         with open(filename, "w", encoding="utf-8") as save_file:
             save_file.write(json.dumps(asdict(self.get_config()), sort_keys=True, indent=4))
 
     def load_config(self):
         """Load tab configuration from json file"""
-        filename = QtWidgets.QFileDialog.getOpenFileName(self, "", experiment_config_dir, ("JSON files (*.json)"))[0]
+        filename = QtWidgets.QFileDialog.getOpenFileName(self, "", str(experiments_dir), ("JSON files (*.json)"))[0]
         with open(filename, "r", encoding="utf-8") as load_file:
             multitab_config = Multitab_config(**json.loads(load_file.read()))
         self.set_config(multitab_config)
@@ -604,7 +603,7 @@ class Setupbox(QtWidgets.QFrame):
     def test_data_path(self):
         """Checks whether data dir and subject ID are valid."""
         self.subject_ID = self.subject_text.text()
-        if self.status == Status.RUNNING and os.path.isdir(self.acquisition_tab.data_dir) and str(self.subject_ID):
+        if self.status == Status.RUNNING and self.acquisition_tab.data_dir.exists() and str(self.subject_ID):
             self.record_button.setEnabled(True)
             return True
         else:

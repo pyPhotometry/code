@@ -3,15 +3,16 @@
 # Copyright (c) Thomas Akam 2018-2023.
 # Licenced under the GNU General Public License v3.
 
-import os
 import numpy as np
 import json
 import time
+from pathlib import Path
 from inspect import getsource
 from datetime import datetime
 from time import sleep
 
 from GUI.pyboard import Pyboard, PyboardError
+from GUI.dir_paths import upy_dir, config_dir
 from config.GUI_config import VERSION, update_interval
 
 from config import hardware_config as hwc
@@ -34,8 +35,8 @@ class Acquisition_board(Pyboard):
         # Transfer firmware if not already on board.
         self.exec(getsource(_djb2_file))  # Define djb2 hashing function on board.
         self.exec(getsource(_receive_file))  # Define recieve file function on board.
-        self.transfer_file(os.path.join("uPy", "photometry_upy.py"))
-        self.transfer_file(os.path.join("config", "hardware_config.py"))
+        self.transfer_file(Path(upy_dir, "photometry_upy.py"))
+        self.transfer_file(Path(config_dir, "hardware_config.py"))
         # Import firmware and instantiate photometry class.
         self.exec("import photometry_upy")
         self.exec("p = photometry_upy.Photometry()")
@@ -103,7 +104,7 @@ class Acquisition_board(Pyboard):
         self.file_type = file_type
         date_time = datetime.now()
         file_name = subject_ID + date_time.strftime("-%Y-%m-%d-%H%M%S") + "." + file_type
-        file_path = os.path.join(data_dir, file_name)
+        file_path = Path(data_dir, file_name)
         self.header_dict = {
             "subject_ID": subject_ID,
             "date_time": date_time.isoformat(timespec="milliseconds"),
@@ -122,7 +123,7 @@ class Acquisition_board(Pyboard):
             self.data_file.write(len(data_header).to_bytes(2, "little"))
             self.data_file.write(data_header)
         elif file_type == "csv":  # Header in .json file and data in .csv file.
-            self.json_path = os.path.join(data_dir, file_name[:-4] + ".json")
+            self.json_path = Path(data_dir, file_name[:-4] + ".json")
             with open(self.json_path, "w") as headerfile:
                 headerfile.write(json.dumps(self.header_dict, sort_keys=True, indent=4))
             self.data_file = open(file_path, "w")
@@ -215,8 +216,8 @@ class Acquisition_board(Pyboard):
 
     def transfer_file(self, file_path):
         """Copy file at file_path to pyboard."""
-        target_path = os.path.split(file_path)[-1]
-        file_size = os.path.getsize(file_path)
+        target_path = file_path.name
+        file_size = file_path.stat().st_size
         file_hash = _djb2_file(file_path)
         # Try to load file, return once file hash on board matches that on computer.
         for i in range(10):
