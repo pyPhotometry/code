@@ -158,7 +158,7 @@ def preprocess_data(
         control = data_dict[control]
         sampling_rate = data_dict["sampling_rate"]
     # Filtering to remove noise.
-    b, a = butter(2, 10, btype="low", fs=sampling_rate)
+    b, a = butter(2, low_pass, btype="low", fs=sampling_rate)
     if median_filter:  # Median filter + lowpass filter.
         signal_filt = filtfilt(b, a, medfilt(signal, median_filter))
         control_filt = filtfilt(b, a, medfilt(control, median_filter))
