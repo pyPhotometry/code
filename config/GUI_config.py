@@ -6,7 +6,7 @@ VERSION = "1.0"  # Version number of pyPhotometry.
 
 history_dur = 10  # Duration of plotted signal history (seconds)
 triggered_dur = [-3, 6.9]  # Window duration for event triggered signals (seconds pre, post)
-update_interval = 20  # How often plots are updated during acqusition (ms).
+update_interval = 10  # How often plots are updated during acqusition (ms).
 max_plot_pulses = 3  # Maximum number of pulses to plot on analog plot.
 
 default_LED_current = [10, 10]  # Channel [1, 2] (mA).

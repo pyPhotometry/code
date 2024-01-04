@@ -196,6 +196,7 @@ class Acquisition_tab(QtWidgets.QWidget):
 
     def remove_setup(self):
         box = self.setupboxes.pop(-1)
+        box.close()
         box.setParent(None)
         box.deleteLater()
         self.n_setups = len(self.setupboxes)
@@ -226,17 +227,19 @@ class Acquisition_tab(QtWidgets.QWidget):
             new_status = Status.MIXED_NOTRUNNING
         # Update UI
         if new_status != self.status:
-            if new_status in (Status.DISCONNECTED, Status.STOPPED, Status.MIXED_NOTRUNNING):
+            if new_status in (Status.RUNNING, Status.RECORDING, Status.MIXED_RUNNING):  # Setups are running.
+                self.config_groupbox.setEnabled(False)
+                self.settings_groupbox.setEnabled(False)
+                self.datadir_groupbox.setEnabled(False)
+                self.GUI_main.tab_widget.setTabEnabled(1, False)
+                if not self.update_timer.isActive():
+                    self.update_timer.start(GUI_config.update_interval)
+            else:  # No setups running.
                 self.update_timer.stop()
                 self.config_groupbox.setEnabled(True)
                 self.settings_groupbox.setEnabled(True)
                 self.datadir_groupbox.setEnabled(True)
-            else:
-                self.config_groupbox.setEnabled(False)
-                self.settings_groupbox.setEnabled(False)
-                self.datadir_groupbox.setEnabled(False)
-                if not self.update_timer.isActive():
-                    self.update_timer.start(GUI_config.update_interval)
+                self.GUI_main.tab_widget.setTabEnabled(1, True)
             if new_status in (Status.MIXED_NOTRUNNING, Status.MIXED_RUNNING):
                 self.controls_groupbox.setEnabled(False)
             else:
@@ -676,10 +679,14 @@ class Setupbox(QtWidgets.QFrame):
 
     # Cleanup.
 
-    def closeEvent(self, event):
-        # Called when GUI window is closed.
+    def close(self):
+        # Stop acqusition and disconnect.
         if self.is_running():
             self.stop()
         if self.board:
             self.board.close()
+
+    def closeEvent(self, event):
+        # Called when GUI window is closed.
+        self.close()
         event.accept()
