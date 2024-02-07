@@ -51,12 +51,20 @@ class Signals_plot(QtWidgets.QWidget):
         self.autoscale_button = QtWidgets.QPushButton("Auto")
         self.autoscale_button.setFixedWidth(50)
         self.autoscale_button.clicked.connect(self.autoscale)
-        self.zoom_out_button = QtWidgets.QPushButton("-")
-        self.zoom_out_button.setFixedWidth(30)
-        self.zoom_out_button.clicked.connect(lambda x: self.scale_y(1.25))
-        self.zoom_in_button = QtWidgets.QPushButton("+")
-        self.zoom_in_button.setFixedWidth(30)
-        self.zoom_in_button.clicked.connect(lambda x: self.scale_y(0.75))
+        self.ymin_label = QtWidgets.QLabel("Min:")
+        self.ymin_spinbox = QtWidgets.QDoubleSpinBox()
+        self.ymin_spinbox.setFixedWidth(50)
+        self.ymin_spinbox.setRange(-0.1, 3.3)
+        self.ymin_spinbox.setSingleStep(0.05)
+        self.ymin_spinbox.setValue(-0.1)
+        self.ymin_spinbox.valueChanged.connect(self.yrange_spinbox_changed)
+        self.ymax_label = QtWidgets.QLabel("Max:")
+        self.ymax_spinbox = QtWidgets.QDoubleSpinBox()
+        self.ymax_spinbox.setFixedWidth(50)
+        self.ymax_spinbox.setRange(-0.1, 3.3)
+        self.ymax_spinbox.setSingleStep(0.05)
+        self.ymax_spinbox.setValue(3.3)
+        self.ymax_spinbox.valueChanged.connect(self.yrange_spinbox_changed)
         self.demean_checkbox = QtWidgets.QCheckBox("De-mean plotted signals")
         self.demean_checkbox.stateChanged.connect(self.enable_disable_demean_mode)
         self.offset_label = QtWidgets.QLabel("Offset channels (mV):")
@@ -72,8 +80,10 @@ class Signals_plot(QtWidgets.QWidget):
         self.controls_layout.addWidget(self.yrange_label)
         self.controls_layout.addWidget(self.fullrange_button)
         self.controls_layout.addWidget(self.autoscale_button)
-        self.controls_layout.addWidget(self.zoom_out_button)
-        self.controls_layout.addWidget(self.zoom_in_button)
+        self.controls_layout.addWidget(self.ymin_label)
+        self.controls_layout.addWidget(self.ymin_spinbox)
+        self.controls_layout.addWidget(self.ymax_label)
+        self.controls_layout.addWidget(self.ymax_spinbox)
         self.controls_layout.addWidget(QFrame(frameShape=QFrame.Shape.VLine, frameShadow=QFrame.Shadow.Sunken))
         self.controls_layout.addWidget(self.demean_checkbox)
         self.controls_layout.addWidget(self.offset_label)
@@ -155,6 +165,7 @@ class Signals_plot(QtWidgets.QWidget):
     def autoscale(self):
         """Set the Y axis ranges to show all the data"""
         self.axis.autoRange(padding=0.1)
+        self.update_yrange_spinboxes()
 
     def fullscale(self):
         """Set the Y axis ranges to show the full signal range, turn of Demean mode if on."""
@@ -162,10 +173,17 @@ class Signals_plot(QtWidgets.QWidget):
             self.demean_checkbox.setChecked(False)
             self.autoscale_next_update = False
         self.axis.setYRange(-0.1, 3.3, padding=0)
+        self.update_yrange_spinboxes()
 
-    def scale_y(self, s):
-        """Zoom in or out the Y scale by specified factor."""
-        self.axis.getPlotItem().getViewBox().scaleBy(y=s)
+    def update_yrange_spinboxes(self):
+        ymin, ymax = self.axis.getViewBox().viewRange()[1]
+        with QtCore.QSignalBlocker(self.ymin_spinbox):
+            self.ymin_spinbox.setValue(ymin)
+        with QtCore.QSignalBlocker(self.ymax_spinbox):
+            self.ymax_spinbox.setValue(ymax)
+
+    def yrange_spinbox_changed(self):
+        self.axis.setYRange(self.ymin_spinbox.value(), self.ymax_spinbox.value(), padding=0)
 
 
 class Pulse_shader:
