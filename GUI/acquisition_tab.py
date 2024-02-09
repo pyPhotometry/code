@@ -373,6 +373,7 @@ class Acquisition_tab(QtWidgets.QWidget):
 
     def load_config(self):
         """Load tab configuration from json file"""
+        self.disconnect()
         filename = QtWidgets.QFileDialog.getOpenFileName(self, "", str(experiments_dir), ("JSON files (*.json)"))[0]
         with open(filename, "r", encoding="utf-8") as load_file:
             multitab_config = Multitab_config(**json.loads(load_file.read()))
