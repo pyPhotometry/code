@@ -6,6 +6,7 @@ import pyqtgraph as pg
 from datetime import datetime
 from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
 from pyqtgraph.Qt.QtWidgets import QFrame
+from scipy.signal import butter, filtfilt
 
 from config.GUI_config import history_dur, triggered_dur, max_plot_pulses
 
@@ -74,6 +75,8 @@ class Signals_plot(QtWidgets.QWidget):
         self.offset_spinbox.setMaximum(500)
         self.offset_spinbox.setValue(100)
         self.offset_spinbox.setFixedWidth(50)
+        self.lowpass_button = QtWidgets.QPushButton("Lowpass filter")
+        self.lowpass_button.setCheckable(True)
         self.etp_checkbox = QtWidgets.QCheckBox("Show event triggered plot")
         self.etp_checkbox.stateChanged.connect(self.show_hide_event_triggered_plot)
         self.controls_layout = QtWidgets.QHBoxLayout()
@@ -84,6 +87,8 @@ class Signals_plot(QtWidgets.QWidget):
         self.controls_layout.addWidget(self.ymin_spinbox)
         self.controls_layout.addWidget(self.ymax_label)
         self.controls_layout.addWidget(self.ymax_spinbox)
+        self.controls_layout.addWidget(QFrame(frameShape=QFrame.Shape.VLine, frameShadow=QFrame.Shadow.Sunken))
+        self.controls_layout.addWidget(self.lowpass_button)
         self.controls_layout.addWidget(QFrame(frameShape=QFrame.Shape.VLine, frameShadow=QFrame.Shadow.Sunken))
         self.controls_layout.addWidget(self.demean_checkbox)
         self.controls_layout.addWidget(self.offset_label)
@@ -125,6 +130,7 @@ class Signals_plot(QtWidgets.QWidget):
         self.DI_shaders[0].reset(self.DIs[0], self.x)
         self.DI_shaders[1].reset(self.DIs[1], self.x)
         self.event_triggered_plot.reset(sampling_rate)
+        self.filter_BA = butter(2, 10 / (0.5 * sampling_rate), "low")
 
     def update(self, new_ADCs, new_DIs):
         new_ADCs = [3.3 * new_ADC / (1 << 15) for new_ADC in new_ADCs]  # Convert to Volts.
@@ -134,6 +140,10 @@ class Signals_plot(QtWidgets.QWidget):
                 y = self.ADCs[i].history - np.nanmean(self.ADCs[i].history) - i * self.offset_spinbox.value() / 1000
             else:
                 y = self.ADCs[i].history
+            if self.lowpass_button.isChecked(): # Lowpass filter signal
+                if np.any(np.isnan(y)):
+                    y[np.isnan(y)] = 0
+                y = filtfilt(*self.filter_BA, y)
             self.plots[i].setData(self.x, y)
         for i, new_DI in enumerate(new_DIs):
             self.DIs[i].update(new_DI)
