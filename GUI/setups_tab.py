@@ -77,6 +77,8 @@ class Setups_tab(QtWidgets.QWidget):
             # Add any newly connected setups.
             for port in set(ports) - set(self.setups.keys()):
                 unique_id, flashdrive_enabled = get_board_info(port)
+                if unique_id is None:  # Serial device is not a pyboard.
+                    continue
                 saved_setup = self.get_saved_setup(unique_id=unique_id, port=port)
                 if saved_setup:
                     saved_setup.port = port  # Port may have changed since saved value.
@@ -88,12 +90,14 @@ class Setups_tab(QtWidgets.QWidget):
                         self, port=port, unique_id=unique_id, flashdrive_enabled=flashdrive_enabled
                     )
                 self.update_saved_setups(self.setups[port])
+                self.setups_changed = True
             # Remove any unplugged setups.
             for port in set(self.setups.keys()) - set(ports):
                 self.setups[port].unplugged()
                 del self.setups[port]
+                self.setups_changed = True
+        if self.setups_changed:
             self.setups_table.sortItems(0)
-            self.setups_changed = True
 
     def get_setup_labels(self):
         """Return a list of GUI labels for non-hidden setups."""
