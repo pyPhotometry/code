@@ -78,6 +78,8 @@ class Acquisition_tab(QtWidgets.QWidget):
         self.setupboxes = []
         self.n_setups = 0
         self.data_dir = data_dir
+        self.saved_config = None
+        self.config_save_path = None
 
         # Config groupbox
 
@@ -85,6 +87,10 @@ class Acquisition_tab(QtWidgets.QWidget):
         self.save_button = QtWidgets.QPushButton("Save")
         self.save_button.setIcon(QtGui.QIcon("GUI/icons/save.svg"))
         self.save_button.clicked.connect(self.save_config)
+        self.save_button.setEnabled(False)
+        self.save_as_button = QtWidgets.QPushButton("Save as")
+        self.save_as_button.setIcon(QtGui.QIcon("GUI/icons/save_as.svg"))
+        self.save_as_button.clicked.connect(self.save_config_as)
         self.load_button = QtWidgets.QPushButton("Load")
         self.load_button.clicked.connect(self.load_config)
         self.setups_label = QtWidgets.QLabel("Setups:")
@@ -95,6 +101,7 @@ class Acquisition_tab(QtWidgets.QWidget):
 
         self.configgroup_layout = QtWidgets.QHBoxLayout()
         self.configgroup_layout.addWidget(self.save_button)
+        self.configgroup_layout.addWidget(self.save_as_button)
         self.configgroup_layout.addWidget(self.load_button)
         self.configgroup_layout.addWidget(self.setups_label)
         self.configgroup_layout.addWidget(self.setups_spinbox)
@@ -125,7 +132,6 @@ class Acquisition_tab(QtWidgets.QWidget):
 
         self.datadir_groupbox = QtWidgets.QGroupBox("Data directory")
 
-        self.data_dir_label = QtWidgets.QLabel("Data dir:")
         self.data_dir_text = QtWidgets.QLineEdit(str(self.data_dir))
         self.data_dir_button = QtWidgets.QPushButton("")
         self.data_dir_button.setIcon(QtGui.QIcon("GUI/icons/folder.svg"))
@@ -136,7 +142,6 @@ class Acquisition_tab(QtWidgets.QWidget):
         set_cbox_item(self.filetype_select, GUI_config.default_filetype)
 
         self.filegroup_layout = QtWidgets.QHBoxLayout()
-        self.filegroup_layout.addWidget(self.data_dir_label)
         self.filegroup_layout.addWidget(self.data_dir_text)
         self.filegroup_layout.addWidget(self.data_dir_button)
         self.filegroup_layout.addWidget(self.filetype_label)
@@ -366,27 +371,50 @@ class Acquisition_tab(QtWidgets.QWidget):
             box.set_config(Setup_config(**setup_config_dict))
 
     def save_config(self):
-        """Save tab configuration as a json file"""
-        filename = QtWidgets.QFileDialog.getSaveFileName(self, "", str(experiments_dir), ("JSON files (*.json)"))[0]
-        with open(filename, "w", encoding="utf-8") as save_file:
-            save_file.write(json.dumps(asdict(self.get_config()), sort_keys=True, indent=4))
+        """Save tab configuration to already selected save file."""
+        self.saved_config = self.get_config()
+        with open(self.config_save_path, "w", encoding="utf-8") as save_file:
+            save_file.write(json.dumps(asdict(self.saved_config), sort_keys=True, indent=4))
+        self.save_button.setEnabled(False)
+
+    def save_config_as(self):
+        """Open dialog to select file to save tab configuration as a json file"""
+        new_path = QtWidgets.QFileDialog.getSaveFileName(self, "", str(experiments_dir), ("JSON files (*.json)"))[0]
+        if not new_path:
+            return
+        self.config_save_path = new_path
+        self.saved_config = self.get_config()
+        with open(self.config_save_path, "w", encoding="utf-8") as save_file:
+            save_file.write(json.dumps(asdict(self.saved_config), sort_keys=True, indent=4))
+        self.save_button.setEnabled(False)
 
     def load_config(self):
         """Load tab configuration from json file"""
+        new_path = QtWidgets.QFileDialog.getOpenFileName(self, "", str(experiments_dir), ("JSON files (*.json)"))[0]
+        if not new_path:
+            return
+        self.config_save_path = new_path
         self.disconnect()
-        filename = QtWidgets.QFileDialog.getOpenFileName(self, "", str(experiments_dir), ("JSON files (*.json)"))[0]
-        with open(filename, "r", encoding="utf-8") as load_file:
-            multitab_config = Multitab_config(**json.loads(load_file.read()))
-        self.set_config(multitab_config)
+        with open(self.config_save_path, "r", encoding="utf-8") as load_file:
+            new_config = Multitab_config(**json.loads(load_file.read()))
+        self.set_config(new_config)
+        self.saved_config = self.get_config()
+        self.save_button.setEnabled(False)
 
     # Timer callbacks
 
     def refresh(self):
         """Called regularly when no setups are running"""
+        # Handle connected/disconnected setups.
         if self.GUI_main.setups_tab.setups_changed:
             setup_labels = self.GUI_main.setups_tab.get_setup_labels()
             for box in self.setupboxes:
                 box.update_setups(setup_labels)
+        # Enable/disable save button.
+        if self.saved_config != self.get_config() and self.config_save_path:
+            self.save_button.setEnabled(True)
+        else:
+            self.save_button.setEnabled(False)
 
     def process_data(self):
         """Called regularly while setups are running to process new data."""
