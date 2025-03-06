@@ -596,6 +596,7 @@ class Setupbox(QtWidgets.QFrame):
             self.record_button.setEnabled(True)
         self.stop_button.setEnabled(True)
         self.status_text.setText("Running")
+        self.signals_plot.info_overlay.start_acquisition()
 
     def record(self):
         """Start recording data to disk."""
@@ -607,7 +608,7 @@ class Setupbox(QtWidgets.QFrame):
         self.current_spinbox_2.setEnabled(False)
         self.record_button.setEnabled(False)
         self.subject_text.setEnabled(False)
-        self.signals_plot.record_clock.start()
+        self.signals_plot.info_overlay.start_recording()
         self.status = Status.RECORDING
         self.acquisition_tab.update_status()
 
@@ -628,7 +629,7 @@ class Setupbox(QtWidgets.QFrame):
         self.subject_text.setEnabled(True)
         self.connect_button.setEnabled(True)
         self.status_text.setText("Connected")
-        self.signals_plot.record_clock.stop()
+        self.signals_plot.info_overlay.stop_recording()
 
     # Configuration
 
@@ -689,8 +690,8 @@ class Setupbox(QtWidgets.QFrame):
             raise
             return
         if data:  # Update plots.
-            new_ADCs, new_DIs = data
-            self.signals_plot.update(new_ADCs, new_DIs)
+            new_ADCs, new_DIs, new_clipping = data
+            self.signals_plot.update(new_ADCs, new_DIs, new_clipping)
 
     def update_setups(self, setup_labels):
         """Update available ports in port_select combobox."""

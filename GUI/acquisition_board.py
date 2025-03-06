@@ -87,7 +87,7 @@ class Acquisition_board(Pyboard):
     def set_sampling_rate(self, sampling_rate):
         self.sampling_rate = int(min(sampling_rate, self.max_rate))
         self.buffer_size = max(
-            self.n_analog_signals, int(self.sampling_rate // (1000 / update_interval)) * self.n_analog_signals
+            2 * self.n_analog_signals, int(self.sampling_rate // (1000 / update_interval)) * 2 * self.n_analog_signals
         )
         self.serial_chunk_size = (self.buffer_size + 2) * 2
         return self.sampling_rate
@@ -188,15 +188,32 @@ class Acquisition_board(Pyboard):
             data = np.hstack(data_chunks)
             signal = data >> 1  # Analog signal is most significant 15 bits.
             digital = (data % 2) == 1  # Digital signal is least significant bit.
-            ADCs = [signal[a :: self.n_analog_signals] for a in range(self.n_analog_signals)]  # [ADC1, ..., ADCn]
-            DIs = [digital[d :: self.n_analog_signals] for d in range(self.n_digital_signals)]  # [DI1, ..., DIn]
+            if self.mode == "2EX_2EM_continuous":
+                ADCs = [signal[a :: self.n_analog_signals] for a in range(self.n_analog_signals)]  # [ADC1, ..., ADCn]
+                DIs = [digital[d :: self.n_analog_signals] for d in range(self.n_digital_signals)]  # [DI1, ..., DIn]
+                clipping = [np.any(ADC > hwc.clipping_threshold) for ADC in ADCs]
+
+            else:  # Pulsed modes
+                # Extract raw signals.
+                ADCs = [signal[2 * a :: 2 * self.n_analog_signals] for a in range(self.n_analog_signals)]
+                baselines = [signal[2 * a + 1 :: 2 * self.n_analog_signals] for a in range(self.n_analog_signals)]
+                DIs = [digital[2 * d :: 2 * self.n_analog_signals] for d in range(self.n_digital_signals)]
+                # Compute signal before baseline subtraction by adding back in baseline.
+                LED_on_sigs = [ADC + BL for ADC, BL in zip(ADCs, baselines)]
+                # Evaluate if signal is clipping for each channel.
+                clipping = [
+                    np.any(LED_on_sig > hwc.clipping_threshold) or np.any(baseline > hwc.clipping_threshold)
+                    for LED_on_sig, baseline in zip(LED_on_sigs, baselines)
+                ]
+                # Remove baseline samples from data before saving to disk
+                data = data[0::2]
             # Write data to disk.
             if self.data_file:
                 if self.file_type == "ppd":  # Binary data file.
                     self.data_file.write(data.tobytes())
                 else:  # CSV data file.
                     np.savetxt(self.data_file, np.array(ADCs + DIs, dtype=int).T, fmt="%d", delimiter=",")
-            return ADCs, DIs
+            return ADCs, DIs, clipping
 
     def unique_id(self):
         """Return the hardware ID of the pyboard."""

@@ -68,14 +68,14 @@ class Photometry:
 
     def start(self, sampling_rate, buffer_size):
         # Start acquisition, stream data to computer, wait for ctrl+c over serial to stop.
-        # Setup sample buffers.
         self.buffer_size = buffer_size
         self.sample_buffers = (array("H", [0] * buffer_size), array("H", [0] * buffer_size))
         self.buffer_data_mv = (memoryview(self.sample_buffers[0]), memoryview(self.sample_buffers[1]))
         self.chunk_header = array("H", [0, 0])
-        self.sample = 0
-        self.baseline = 0
-        self.dig_sample = False
+        self.channel = 0  # Channel to read next
+        self.sample = 0  # Latest data sample
+        self.baseline = 0  # Latest baseline sample
+        self.dig_sample = False  # Latest digital sample
         self.write_buf = 0  # Buffer to write data to.
         self.send_buf = 1  # Buffer to send data from.
         self.write_ind = 0  # Buffer index to write new data to.
@@ -139,17 +139,17 @@ class Photometry:
         # Interrupt service routine for pulsed acquisition modes.
 
         # Read baseline, turn on LED.
-        if (self.write_ind % self.n_analog_signals) == 0:  # Photoreciever=1, LED=1.
+        if self.channel == 0:  # Photoreciever=1, LED=1.
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
             self.LED1.write(self.LED_1_value)
-        elif (self.write_ind % self.n_analog_signals) == 1:
+        elif self.channel == 1:
             if self.mode == "2EX_1EM_pulsed":  # Photoreciever=1, LED=2.
                 self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
                 self.LED2.write(self.LED_2_value)
             else:  # Photoreciever=2, LED=2.
                 self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
                 self.LED2.write(self.LED_2_value)
-        elif (self.write_ind % self.n_analog_signals) == 2:  # Photoreciever=1, LED=3.
+        elif self.channel == 2:  # Photoreciever=1, LED=3.
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
             self.LED3.value(1)
         self.baseline = sum(self.ovs_buffer) >> 3
@@ -157,29 +157,35 @@ class Photometry:
         pyb.udelay(300)  # Wait before reading ADC (us).
 
         # Read sample, turn off LED.
-        if (self.write_ind % self.n_analog_signals) == 0:  # Photoreciever=1, LED=1.
+        if self.channel == 0:  # Photoreciever=1, LED=1.
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
             self.dig_sample = self.DI1.value()
             self.LED1.write(0)
-        elif (self.write_ind % self.n_analog_signals) == 1:
+        elif self.channel == 1:
             if self.mode == "2EX_1EM_pulsed":  # Photoreciever=1, LED=2.
                 self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
             else:  # Photoreciever=2, LED=2.
                 self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)
             self.dig_sample = False if self.mode == "3EX_2EM_pulsed" else self.DI2.value()
             self.LED2.write(0)
-        elif (self.write_ind % self.n_analog_signals) == 2:  # Photoreciever=1, LED=3.
+        elif self.channel == 2:  # Photoreciever=1, LED=3.
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
             self.LED3.value(0)
             self.dig_sample = False
         self.sample = sum(self.ovs_buffer) >> 3
 
-        # Subtract baseline and  store sample in buffer.
+        # Store baseline subtracted signal in buffer.
         self.sample = max(self.sample - self.baseline, 0)
         self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.dig_sample
 
+        # Store baseline in buffer.
+        self.sample_buffers[self.write_buf][self.write_ind + 1] = self.baseline << 1
+
+        # Update channel to read next call.
+        self.channel = (self.channel + 1) % self.n_analog_signals
+
         # Update write index and switch buffers if buffer full.
-        self.write_ind = (self.write_ind + 1) % self.buffer_size
+        self.write_ind = (self.write_ind + 2) % self.buffer_size
         if self.write_ind == 0:  # Buffer full, switch buffers.
             self.write_buf = 1 - self.write_buf
             self.send_buf = 1 - self.send_buf

@@ -42,7 +42,7 @@ class Signals_plot(QtWidgets.QWidget):
         ]
         self.event_triggered_plot = Event_triggered_plot(self)
         self.event_triggered_plot.axis.setVisible(False)
-        self.record_clock = Record_clock(self.axis)
+        self.info_overlay = Info_overlay(self.axis)
 
         # Create controls
         self.yrange_label = QtWidgets.QLabel("Y range:")
@@ -132,7 +132,7 @@ class Signals_plot(QtWidgets.QWidget):
         self.event_triggered_plot.reset(sampling_rate)
         self.filter_BA = butter(2, 10 / (0.5 * sampling_rate), "low")
 
-    def update(self, new_ADCs, new_DIs):
+    def update(self, new_ADCs, new_DIs, new_clipping):
         new_ADCs = [3.3 * new_ADC / (1 << 15) for new_ADC in new_ADCs]  # Convert to Volts.
         for i, new_ADC in enumerate(new_ADCs):
             self.ADCs[i].update(new_ADC)
@@ -140,7 +140,7 @@ class Signals_plot(QtWidgets.QWidget):
                 y = self.ADCs[i].history - np.nanmean(self.ADCs[i].history) - i * self.offset_spinbox.value() / 1000
             else:
                 y = self.ADCs[i].history
-            if self.lowpass_button.isChecked(): # Lowpass filter signal
+            if self.lowpass_button.isChecked():  # Lowpass filter signal
                 if np.any(np.isnan(y)):
                     y[np.isnan(y)] = 0
                 y = filtfilt(*self.filter_BA, y)
@@ -152,7 +152,7 @@ class Signals_plot(QtWidgets.QWidget):
         if self.autoscale_next_update:
             self.autoscale()
             self.autoscale_next_update = False
-        self.record_clock.update()
+        self.info_overlay.update(new_clipping)
 
     def enable_disable_demean_mode(self):
         if self.demean_checkbox.isChecked():
@@ -287,34 +287,53 @@ class Signal_history:
         self.history[-data_len:] = new_data
 
 
-# Record_clock ----------------------------------------------------
+# Info_overlay ----------------------------------------------------
 
 
-class Record_clock:
-    # Class for displaying the run time.
+class Info_overlay:
+    # Class for overlaying information on signals plot.
 
     def __init__(self, axis):
+        # Recording text.
+        self.recording_text = pg.TextItem(text="")
+        self.recording_text.setFont(QtGui.QFont("arial", 12, QtGui.QFont.Weight.Bold))
+        axis.getViewBox().addItem(self.recording_text, ignoreBounds=True)
+        self.recording_text.setParentItem(axis.getViewBox())
+        self.recording_text.setPos(110, 10)
+        # Clock text.
         self.clock_text = pg.TextItem(text="")
         self.clock_text.setFont(QtGui.QFont("arial", 12, QtGui.QFont.Weight.Bold))
         axis.getViewBox().addItem(self.clock_text, ignoreBounds=True)
         self.clock_text.setParentItem(axis.getViewBox())
         self.clock_text.setPos(240, 10)
-        self.recording_text = pg.TextItem(text="", color=(255, 0, 0))
-        self.recording_text.setFont(QtGui.QFont("arial", 12, QtGui.QFont.Weight.Bold))
-        axis.getViewBox().addItem(self.recording_text, ignoreBounds=True)
-        self.recording_text.setParentItem(axis.getViewBox())
-        self.recording_text.setPos(110, 10)
+        # Clipping indicator.
+        self.clip_indicator_text = pg.TextItem(text="", color="r")
+        self.clip_indicator_text.setFont(QtGui.QFont("arial", 12, QtGui.QFont.Weight.Bold))
+        axis.getViewBox().addItem(self.clip_indicator_text, ignoreBounds=True)
+        self.clip_indicator_text.setParentItem(axis.getViewBox())
+        self.clip_indicator_text.setPos(460, 10)
+
         self.start_time = None
 
-    def start(self):
-        self.start_time = datetime.now()
-        self.recording_text.setText("Recording")
+    def start_acquisition(self):
+        self.recording_text.setText(text="Not Recording", color="r")
 
-    def update(self):
+    def start_recording(self):
+        self.start_time = datetime.now()
+        self.recording_text.setText("Recording", color="g")
+
+    def stop_recording(self):
+        self.clock_text.setText("")
+        self.recording_text.setText(text="")
+        self.start_time = None
+
+    def update(self, new_clipping):
         if self.start_time:
             self.clock_text.setText(str(datetime.now() - self.start_time)[:7])
-
-    def stop(self):
-        self.clock_text.setText("")
-        self.recording_text.setText("")
-        self.start_time = None
+        if any(new_clipping):
+            clip_text = (
+                ", ".join([f"CH{ch+1}" for ch, is_clipping in enumerate(new_clipping) if is_clipping]) + " Clipping"
+            )
+            self.clip_indicator_text.setText(clip_text)
+        else:
+            self.clip_indicator_text.setText("")
