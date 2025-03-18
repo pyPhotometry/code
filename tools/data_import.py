@@ -1,5 +1,5 @@
 # Function for opening pyPhotometry data files in Python.
-# Copyright (c) Thomas Akam 2018-2023.  Licenced under the GNU General Public License v3.
+# Copyright (c) Thomas Akam 2018-2025.  Licenced under the GNU General Public License v3.
 
 import os
 import json
@@ -8,6 +8,7 @@ import numpy as np
 from scipy.signal import butter, filtfilt, medfilt, decimate
 from scipy.optimize import curve_fit
 from scipy.stats import linregress, zscore
+from packaging.version import parse as parse_version
 
 # ----------------------------------------------------------------------------------
 # Import ppd
@@ -28,19 +29,16 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
         'sampling_rate' - Sampling rate (Hz)
         'LED_current'   - Current for LEDs 1 and 2 (mA)
         'version'       - Version number of pyPhotometry
-        'analog_1'      - Raw analog signal 1 (volts)
-        'analog_2'      - Raw analog signal 2 (volts)
-        'analog_3'      - Raw analog signal 3 (if present, volts)
-        'analog_1_filt' - Filtered analog signal 1 (volts)
-        'analog_2_filt' - Filtered analog signal 2 (volts)
-        'analog_3_filt' - Filtered analog signal 2 (if present, volts)
-        'digital_1'     - Digital signal 1
-        'digital_2'     - Digital signal 2 (if present)
-        'pulse_inds_1'  - Locations of rising edges on digital input 1 (samples).
-        'pulse_inds_2'  - Locations of rising edges on digital input 2 (samples).
-        'pulse_times_1' - Times of rising edges on digital input 1 (ms).
-        'pulse_times_2' - Times of rising edges on digital input 2 (ms).
-        'time'          - Time of each sample relative to start of recording (ms)
+        For each analog signal (x in [1, n_analog_signals]):
+            'analog_x'            - Raw analog signal (volts)
+            'analog_x_filt'       - Filtered analog signal (volts)
+        In pulsed acqusition modes with pyPhotometry version >= 1.1:
+            'analog_x_raw_LED_on'   - Analog signal before baseline subtraction.
+            'analog_x_raw_baseline' - Baseline signal with LED off.
+        For each digital signal (y in [1, n_digital_signals]):
+            'digital_y'     - Digital signal
+            'pulse_inds_y'  - Locations of rising edges on digital signal (samples).
+            'pulse_times_y' - Times of rising edges on digital signal (ms).
     """
     with open(file_path, "rb") as f:
         header_size = int.from_bytes(f.read(2), "little")
@@ -48,24 +46,40 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
         data = np.frombuffer(f.read(), dtype=np.dtype("<u2"))
     # Extract header information
     header_dict = json.loads(data_header)
-    volts_per_division = header_dict["volts_per_division"]
     sampling_rate = header_dict["sampling_rate"]
+    volts_per_division = header_dict["volts_per_division"][0]
+    acquisition_mode = header_dict["mode"]
+    version = parse_version(header_dict["version"])
+    # Get number of channels.
+    if version < parse_version("1.0"):
+        # Pre version 1.0 data files always have 2 digital and analog channels.
+        n_analog_signals = 2
+        n_digital_signals = 2
+    else:
+        n_analog_signals = header_dict["n_analog_signals"]
+        n_digital_signals = header_dict["n_digital_signals"]
+    # Get threshold for signal clipping.
+    ADC_max_value = header_dict["ADC_max_value"] if version >= parse_version("1.1") else 1 << 15
+    clip_threshold = 0.98 * ADC_max_value * volts_per_division
     # Extract signals.
     analog = data >> 1  # Analog signal is most significant 15 bits.
     digital = ((data & 1) == 1).astype(int)  # Digital signal is least significant bit.
-    # Alternating samples are different signals.
-    if "n_analog_signals" in header_dict.keys():
-        n_analog_signals = header_dict["n_analog_signals"]
-        n_digital_signals = header_dict["n_digital_signals"]
-    else:  # Pre version 1.0 data file.
-        n_analog_signals = 2
-        n_digital_signals = 2
-    analog_1 = analog[::n_analog_signals] * volts_per_division[0]
-    analog_2 = analog[1::n_analog_signals] * volts_per_division[1]
-    analog_3 = analog[2::n_analog_signals] * volts_per_division[0] if n_analog_signals == 3 else None
-    digital_1 = digital[::n_analog_signals]
-    digital_2 = digital[1::n_analog_signals] if n_digital_signals == 2 else None
-    time = np.arange(analog_1.shape[0]) * 1000 / sampling_rate  # Time relative to start of recording (ms).
+    if (version >= parse_version("1.1")) and ("pulsed" in acquisition_mode):
+        # Version >= 1.1 saves raw LED-on and LED-off (baseline) samples in pulsed mode.
+        LED_on_sigs = [analog[2 * a :: 2 * n_analog_signals] * volts_per_division for a in range(n_analog_signals)]
+        baselines = [analog[2 * a + 1 :: 2 * n_analog_signals] * volts_per_division for a in range(n_analog_signals)]
+        # Compute baseline subtracted signals by subtracting baseline from LED-on signal.
+        analog_sigs = [LED_on_sig - baseline for LED_on_sig, baseline in zip(LED_on_sigs, baselines)]
+        # Identify any samples where signal is clipping
+        clipping = [
+            np.maximum(LED_on_sig, baseline) > clip_threshold for LED_on_sig, baseline in zip(LED_on_sigs, baselines)
+        ]
+        digital_sigs = [digital[2 * d :: 2 * n_analog_signals] for d in range(n_digital_signals)]
+    else:  # Version < 1.1 does baseline subtraction before saving signals.
+        analog_sigs = [analog[a::n_analog_signals] * volts_per_division for a in range(n_analog_signals)]
+        digital_sigs = [digital[d::n_analog_signals] for d in range(n_digital_signals)]
+    # Compute sample times relative to start of recording (ms).
+    time = np.arange(analog_sigs[0].shape[0]) * 1000 / sampling_rate
     # Filter signals with specified high and low pass frequencies (Hz).
     if low_pass and high_pass:
         b, a = butter(2, np.array([high_pass, low_pass]) / (0.5 * sampling_rate), "bandpass")
@@ -74,38 +88,27 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
     elif high_pass:
         b, a = butter(2, high_pass / (0.5 * sampling_rate), "high")
     if low_pass or high_pass:
-        analog_1_filt = filtfilt(b, a, analog_1)
-        analog_2_filt = filtfilt(b, a, analog_2)
-        analog_3_filt = filtfilt(b, a, analog_3) if n_analog_signals == 3 else None
+        analogs_filt = [filtfilt(b, a, analog_sig) for analog_sig in analog_sigs]
     else:
-        analog_1_filt = analog_2_filt = analog_3_filt = None
+        analogs_filt = [None * len(analog_sigs)]
     # Extract rising edges for digital inputs.
-    pulse_inds_1 = 1 + np.where(np.diff(digital_1) == 1)[0]
-    pulse_inds_2 = 1 + np.where(np.diff(digital_2) == 1)[0] if n_digital_signals == 2 else None
-    pulse_times_1 = pulse_inds_1 * 1000 / sampling_rate
-    pulse_times_2 = pulse_inds_2 * 1000 / sampling_rate if n_digital_signals == 2 else None
+    pulse_inds = [1 + np.where(np.diff(digital_sig) == 1)[0] for digital_sig in digital_sigs]
+    pulse_times = [pulse_ind * 1000 / sampling_rate for pulse_ind in pulse_inds]
     # Return signals + header information as a dictionary.
     data_dict = {
         "filename": os.path.basename(file_path),
-        "analog_1": analog_1,
-        "analog_2": analog_2,
-        "analog_1_filt": analog_1_filt,
-        "analog_2_filt": analog_2_filt,
-        "digital_1": digital_1,
-        "digital_2": digital_2,
-        "pulse_inds_1": pulse_inds_1,
-        "pulse_inds_2": pulse_inds_2,
-        "pulse_times_1": pulse_times_1,
-        "pulse_times_2": pulse_times_2,
         "time": time,
     }
-    if n_analog_signals == 3:
-        data_dict.update(
-            {
-                "analog_3": analog_3,
-                "analog_3_filt": analog_3_filt,
-            }
-        )
+    for a in range(n_analog_signals):
+        data_dict[f"analog_{a+1}"] = analog_sigs[a]
+        data_dict[f"analog_{a+1}_filt"] = analogs_filt[a]
+        if version >= parse_version("1.1") and ("pulsed" in acquisition_mode):
+            data_dict[f"analog_{a+1}_raw_LED_on"] = LED_on_sigs[a]
+            data_dict[f"analog_{a+1}_raw_baseline"] = baselines[a]
+    for d in range(n_digital_signals):
+        data_dict[f"digital_{d+1}"] = digital_sigs[d]
+        data_dict[f"pulse_inds_{d+1}"] = pulse_inds[d]
+        data_dict[f"pulse_times_{d+1}"] = pulse_times[d]
     data_dict.update(header_dict)
     return data_dict
 

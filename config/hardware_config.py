@@ -14,6 +14,8 @@ LED_calibration = {
 
 ADC_volts_per_division = [0.00010122, 0.00010122]  # Analog signal volts per division for signal [1, 2]
 
+ADC_max_value = 1 << 15  # Maximum possible value of ADC readings.
+
 max_sampling_rate = {  # Maximum sampling rate in continuous and time division acquisition modes (Hz).
     "continuous": 1000,
     "pulsed": 260,  # For pulsed modes the max sampling rate is per analog channel.
@@ -25,5 +27,3 @@ max_LED_current = {  # Maximum LED current in continuous and time division acqui
 }
 
 oversampling_rate = {"continuous": 3e5, "pulsed": 256e3}  # Rate at which ADC samples are aquired for oversampling.
-
-clipping_threshold = 32000  # Threshold ADC value at which clipping warning is shown.

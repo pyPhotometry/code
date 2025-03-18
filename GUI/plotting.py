@@ -116,7 +116,7 @@ class Signals_plot(QtWidgets.QWidget):
     def reset(self, sampling_rate):
         history_length = int(sampling_rate * history_dur)
         self.autoscale_next_update = False
-        self.ADCs = [
+        self.signals = [
             Signal_history(history_length),
             Signal_history(history_length),
             Signal_history(history_length),
@@ -132,14 +132,18 @@ class Signals_plot(QtWidgets.QWidget):
         self.event_triggered_plot.reset(sampling_rate)
         self.filter_BA = butter(2, 10 / (0.5 * sampling_rate), "low")
 
-    def update(self, new_ADCs, new_DIs, new_clipping):
-        new_ADCs = [3.3 * new_ADC / (1 << 15) for new_ADC in new_ADCs]  # Convert to Volts.
-        for i, new_ADC in enumerate(new_ADCs):
-            self.ADCs[i].update(new_ADC)
+    def update(self, new_signals, new_DIs, new_clipping):
+        new_signals = [3.3 * new_signal / (1 << 15) for new_signal in new_signals]  # Convert to Volts.
+        for i, new_signal in enumerate(new_signals):
+            self.signals[i].update(new_signal)
             if self.AC_mode:  # Plot signals with mean removed.
-                y = self.ADCs[i].history - np.nanmean(self.ADCs[i].history) - i * self.offset_spinbox.value() / 1000
+                y = (
+                    self.signals[i].history
+                    - np.nanmean(self.signals[i].history)
+                    - i * self.offset_spinbox.value() / 1000
+                )
             else:
-                y = self.ADCs[i].history
+                y = self.signals[i].history
             if self.lowpass_button.isChecked():  # Lowpass filter signal
                 if np.any(np.isnan(y)):
                     y[np.isnan(y)] = 0
@@ -148,7 +152,7 @@ class Signals_plot(QtWidgets.QWidget):
         for i, new_DI in enumerate(new_DIs):
             self.DIs[i].update(new_DI)
             self.DI_shaders[i].update()
-        self.event_triggered_plot.update(len(new_ADCs[0]))
+        self.event_triggered_plot.update(len(new_signals[0]))
         if self.autoscale_next_update:
             self.autoscale()
             self.autoscale_next_update = False
@@ -261,7 +265,7 @@ class Event_triggered_plot:
         rising_edges = np.where(np.diff(trig_section) == 1)[0]
         for i, edge in enumerate(rising_edges):
             edge_ind = -self.window[1] - new_data_len - 1 + edge  # Position of edge in signal history.
-            ev_trig_sig = self.signals_plot.ADCs[0].history[edge_ind + self.window[0] : edge_ind + self.window[1]]
+            ev_trig_sig = self.signals_plot.signals[0].history[edge_ind + self.window[0] : edge_ind + self.window[1]]
             if self.average is None:  # First acquisition
                 self.average = ev_trig_sig
             else:  # Update averaged trace.

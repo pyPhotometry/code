@@ -174,8 +174,7 @@ class Photometry:
             self.dig_sample = False
         self.sample = sum(self.ovs_buffer) >> 3
 
-        # Store baseline subtracted signal in buffer.
-        self.sample = max(self.sample - self.baseline, 0)
+        # Store LED-on signal in buffer.
         self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.dig_sample
 
         # Store baseline in buffer.

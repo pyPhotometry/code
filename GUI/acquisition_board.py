@@ -17,6 +17,8 @@ from config.GUI_config import VERSION, update_interval
 
 from config import hardware_config as hwc
 
+clipping_threshold = int(hwc.ADC_max_value * 0.98)
+
 
 class Acquisition_board(Pyboard):
     """Class for aquiring data from a micropython photometry system on a host computer."""
@@ -114,6 +116,7 @@ class Acquisition_board(Pyboard):
             "mode": self.mode,
             "sampling_rate": self.sampling_rate,
             "volts_per_division": hwc.ADC_volts_per_division,
+            "ADC_max_value": hwc.ADC_max_value,
             "LED_current": self.LED_current,
             "version": VERSION,
         }
@@ -186,34 +189,35 @@ class Acquisition_board(Pyboard):
         # Extract signals.
         if data_chunks:
             data = np.hstack(data_chunks)
-            signal = data >> 1  # Analog signal is most significant 15 bits.
+            analog = data >> 1  # Analog signal is most significant 15 bits.
             digital = (data % 2) == 1  # Digital signal is least significant bit.
             if self.mode == "2EX_2EM_continuous":
-                ADCs = [signal[a :: self.n_analog_signals] for a in range(self.n_analog_signals)]  # [ADC1, ..., ADCn]
+                signals = [analog[a :: self.n_analog_signals] for a in range(self.n_analog_signals)]  # [signal1, ...]
                 DIs = [digital[d :: self.n_analog_signals] for d in range(self.n_digital_signals)]  # [DI1, ..., DIn]
-                clipping = [np.any(ADC > hwc.clipping_threshold) for ADC in ADCs]
+                clipping = [np.any(signal > clipping_threshold) for signal in signals]
 
             else:  # Pulsed modes
                 # Extract raw signals.
-                ADCs = [signal[2 * a :: 2 * self.n_analog_signals] for a in range(self.n_analog_signals)]
-                baselines = [signal[2 * a + 1 :: 2 * self.n_analog_signals] for a in range(self.n_analog_signals)]
+                LED_on_signals = [analog[2 * a :: 2 * self.n_analog_signals] for a in range(self.n_analog_signals)]
+                baselines = [analog[2 * a + 1 :: 2 * self.n_analog_signals] for a in range(self.n_analog_signals)]
                 DIs = [digital[2 * d :: 2 * self.n_analog_signals] for d in range(self.n_digital_signals)]
-                # Compute signal before baseline subtraction by adding back in baseline.
-                LED_on_sigs = [ADC + BL for ADC, BL in zip(ADCs, baselines)]
+                # Compute baseline subtracted signals.
+                signals = [
+                    np.maximum(signal.astype(np.int32) - baseline, 0).astype(np.dtype("<u2"))
+                    for signal, baseline in zip(LED_on_signals, baselines)
+                ]
                 # Evaluate if signal is clipping for each channel.
                 clipping = [
-                    np.any(LED_on_sig > hwc.clipping_threshold) or np.any(baseline > hwc.clipping_threshold)
-                    for LED_on_sig, baseline in zip(LED_on_sigs, baselines)
+                    np.any(LED_on_signal > clipping_threshold) or np.any(baseline > clipping_threshold)
+                    for LED_on_signal, baseline in zip(LED_on_signals, baselines)
                 ]
-                # Remove baseline samples from data before saving to disk
-                data = data[0::2]
             # Write data to disk.
             if self.data_file:
                 if self.file_type == "ppd":  # Binary data file.
                     self.data_file.write(data.tobytes())
                 else:  # CSV data file.
-                    np.savetxt(self.data_file, np.array(ADCs + DIs, dtype=int).T, fmt="%d", delimiter=",")
-            return ADCs, DIs, clipping
+                    np.savetxt(self.data_file, np.array(signals + DIs, dtype=int).T, fmt="%d", delimiter=",")
+            return signals, DIs, clipping
 
     def unique_id(self):
         """Return the hardware ID of the pyboard."""
