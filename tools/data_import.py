@@ -32,9 +32,11 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
         For each analog signal (x in [1, n_analog_signals]):
             'analog_x'            - Raw analog signal (volts)
             'analog_x_filt'       - Filtered analog signal (volts)
-        In pulsed acqusition modes with pyPhotometry version >= 1.1:
-            'analog_x_raw_LED_on'   - Analog signal before baseline subtraction.
-            'analog_x_raw_baseline' - Baseline signal with LED off.
+            In pulsed acqusition modes with pyPhotometry version >= 1.1:
+            'analog_x_raw_LED_on'   - Analog signal before baseline subtraction (volts)
+            'analog_x_raw_baseline' - Baseline signal with LED off (volts).
+            If signal clipping can be evaluated (not pulsed mode with version < 1.1):
+            'analog_x_clipping' - Samples where analog signal was clipping (bool)
         For each digital signal (y in [1, n_digital_signals]):
             'digital_y'     - Digital signal
             'pulse_inds_y'  - Locations of rising edges on digital signal (samples).
@@ -55,29 +57,32 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
         # Pre version 1.0 data files always have 2 digital and analog channels.
         n_analog_signals = 2
         n_digital_signals = 2
+        pulsed_mode = "time div" in acquisition_mode
     else:
         n_analog_signals = header_dict["n_analog_signals"]
         n_digital_signals = header_dict["n_digital_signals"]
+        pulsed_mode = "pulsed" in acquisition_mode
     # Get threshold for signal clipping.
     ADC_max_value = header_dict["ADC_max_value"] if version >= parse_version("1.1") else 1 << 15
     clip_threshold = 0.98 * ADC_max_value * volts_per_division
     # Extract signals.
     analog = data >> 1  # Analog signal is most significant 15 bits.
     digital = ((data & 1) == 1).astype(int)  # Digital signal is least significant bit.
-    if (version >= parse_version("1.1")) and ("pulsed" in acquisition_mode):
+    if (version >= parse_version("1.1")) and pulsed_mode:
         # Version >= 1.1 saves raw LED-on and LED-off (baseline) samples in pulsed mode.
         LED_on_sigs = [analog[2 * a :: 2 * n_analog_signals] * volts_per_division for a in range(n_analog_signals)]
         baselines = [analog[2 * a + 1 :: 2 * n_analog_signals] * volts_per_division for a in range(n_analog_signals)]
         # Compute baseline subtracted signals by subtracting baseline from LED-on signal.
         analog_sigs = [LED_on_sig - baseline for LED_on_sig, baseline in zip(LED_on_sigs, baselines)]
         # Identify any samples where signal is clipping
-        clipping = [
+        sigs_clipping = [
             np.maximum(LED_on_sig, baseline) > clip_threshold for LED_on_sig, baseline in zip(LED_on_sigs, baselines)
         ]
         digital_sigs = [digital[2 * d :: 2 * n_analog_signals] for d in range(n_digital_signals)]
     else:  # Version < 1.1 does baseline subtraction before saving signals.
         analog_sigs = [analog[a::n_analog_signals] * volts_per_division for a in range(n_analog_signals)]
         digital_sigs = [digital[d::n_analog_signals] for d in range(n_digital_signals)]
+        sigs_clipping = [analog_sig > clip_threshold for analog_sig in analog_sigs] if not pulsed_mode else None
     # Compute sample times relative to start of recording (ms).
     time = np.arange(analog_sigs[0].shape[0]) * 1000 / sampling_rate
     # Filter signals with specified high and low pass frequencies (Hz).
@@ -102,9 +107,11 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
     for a in range(n_analog_signals):
         data_dict[f"analog_{a+1}"] = analog_sigs[a]
         data_dict[f"analog_{a+1}_filt"] = analogs_filt[a]
-        if version >= parse_version("1.1") and ("pulsed" in acquisition_mode):
+        if version >= parse_version("1.1") and pulsed_mode:
             data_dict[f"analog_{a+1}_raw_LED_on"] = LED_on_sigs[a]
             data_dict[f"analog_{a+1}_raw_baseline"] = baselines[a]
+        if sigs_clipping:
+            data_dict[f"analog_{a+1}_clipping"] = sigs_clipping[a]
     for d in range(n_digital_signals):
         data_dict[f"digital_{d+1}"] = digital_sigs[d]
         data_dict[f"pulse_inds_{d+1}"] = pulse_inds[d]
