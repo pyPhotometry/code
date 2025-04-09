@@ -194,7 +194,8 @@ class Acquisition_board(Pyboard):
             if self.mode == "2EX_2EM_continuous":
                 signals = [analog[a :: self.n_analog_signals] for a in range(self.n_analog_signals)]  # [signal1, ...]
                 DIs = [digital[d :: self.n_analog_signals] for d in range(self.n_digital_signals)]  # [DI1, ..., DIn]
-                clipping = [np.any(signal > clipping_threshold) for signal in signals]
+                clipping_high = [np.any(signal > clipping_threshold) for signal in signals]
+                clipping_low = [np.all(signal == 0) for signal in signals]
 
             else:  # Pulsed modes
                 # Extract raw signals.
@@ -207,8 +208,12 @@ class Acquisition_board(Pyboard):
                     for signal, baseline in zip(LED_on_signals, baselines)
                 ]
                 # Evaluate if signal is clipping for each channel.
-                clipping = [
+                clipping_high = [
                     np.any(LED_on_signal > clipping_threshold) or np.any(baseline > clipping_threshold)
+                    for LED_on_signal, baseline in zip(LED_on_signals, baselines)
+                ]
+                clipping_low = [
+                    np.all(LED_on_signal == 0) or np.all(baseline == 0)
                     for LED_on_signal, baseline in zip(LED_on_signals, baselines)
                 ]
             # Write data to disk.
@@ -217,7 +222,7 @@ class Acquisition_board(Pyboard):
                     self.data_file.write(data.tobytes())
                 else:  # CSV data file.
                     np.savetxt(self.data_file, np.array(signals + DIs, dtype=int).T, fmt="%d", delimiter=",")
-            return signals, DIs, clipping
+            return signals, DIs, clipping_high, clipping_low
 
     def unique_id(self):
         """Return the hardware ID of the pyboard."""

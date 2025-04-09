@@ -132,7 +132,8 @@ class Signals_plot(QtWidgets.QWidget):
         self.event_triggered_plot.reset(sampling_rate)
         self.filter_BA = butter(2, 10 / (0.5 * sampling_rate), "low")
 
-    def update(self, new_signals, new_DIs, new_clipping):
+    def update(self, new_data):
+        new_signals, new_DIs, new_clipping_high, new_clipping_low = new_data
         new_signals = [3.3 * new_signal / (1 << 15) for new_signal in new_signals]  # Convert to Volts.
         for i, new_signal in enumerate(new_signals):
             self.signals[i].update(new_signal)
@@ -156,7 +157,7 @@ class Signals_plot(QtWidgets.QWidget):
         if self.autoscale_next_update:
             self.autoscale()
             self.autoscale_next_update = False
-        self.info_overlay.update(new_clipping)
+        self.info_overlay.update(new_clipping_high, new_clipping_low)
 
     def enable_disable_demean_mode(self):
         if self.demean_checkbox.isChecked():
@@ -331,13 +332,18 @@ class Info_overlay:
         self.recording_text.setText(text="")
         self.start_time = None
 
-    def update(self, new_clipping):
+    def update(self, new_clipping_high, new_clipping_low):
         if self.start_time:
             self.clock_text.setText(str(datetime.now() - self.start_time)[:7])
-        if any(new_clipping):
-            clip_text = (
-                ", ".join([f"CH{ch+1}" for ch, is_clipping in enumerate(new_clipping) if is_clipping]) + " Clipping"
+        clip_text = ""
+        if any(new_clipping_high):
+            clip_text += (
+                ", ".join([f"CH{ch+1}" for ch, is_clipping in enumerate(new_clipping_high) if is_clipping])
+                + " Clipping"
+            ) + "   "
+        if any(new_clipping_low):
+            clip_text += (
+                ", ".join([f"CH{ch+1}" for ch, is_clipping in enumerate(new_clipping_low) if is_clipping])
+                + " Clipping low"
             )
-            self.clip_indicator_text.setText(clip_text)
-        else:
-            self.clip_indicator_text.setText("")
+        self.clip_indicator_text.setText(clip_text)

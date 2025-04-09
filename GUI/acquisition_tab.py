@@ -683,15 +683,14 @@ class Setupbox(QtWidgets.QFrame):
         # Called regularly while running, read data from the serial port
         # and update the plot.
         try:
-            data = self.board.process_data()
+            new_data = self.board.process_data()
         except (PyboardError, SerialException):
             self.disconnect()
             self.status_text.setText("Error")
             raise
             return
-        if data:  # Update plots.
-            new_signals, new_DIs, new_clipping = data
-            self.signals_plot.update(new_signals, new_DIs, new_clipping)
+        if new_data:  # Update plots.
+            self.signals_plot.update(new_data)
 
     def update_setups(self, setup_labels):
         """Update available ports in port_select combobox."""
