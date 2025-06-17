@@ -66,7 +66,7 @@ class Signals_plot(QtWidgets.QWidget):
         self.ymax_spinbox.setSingleStep(0.05)
         self.ymax_spinbox.setValue(3.3)
         self.ymax_spinbox.valueChanged.connect(self.yrange_spinbox_changed)
-        self.demean_checkbox = QtWidgets.QCheckBox("De-mean plotted signals")
+        self.demean_checkbox = QtWidgets.QCheckBox("De-mean signals")
         self.demean_checkbox.stateChanged.connect(self.enable_disable_demean_mode)
         self.offset_label = QtWidgets.QLabel("Offset channels (mV):")
         self.offset_spinbox = QtWidgets.QSpinBox()
@@ -77,7 +77,7 @@ class Signals_plot(QtWidgets.QWidget):
         self.offset_spinbox.setFixedWidth(50)
         self.lowpass_button = QtWidgets.QPushButton("Lowpass filter")
         self.lowpass_button.setCheckable(True)
-        self.etp_checkbox = QtWidgets.QCheckBox("Show event triggered plot")
+        self.etp_checkbox = QtWidgets.QCheckBox("Event triggered plot")
         self.etp_checkbox.stateChanged.connect(self.show_hide_event_triggered_plot)
         self.controls_layout = QtWidgets.QHBoxLayout()
         self.controls_layout.addWidget(self.yrange_label)
@@ -341,9 +341,9 @@ class Info_overlay:
                 ", ".join([f"CH{ch+1}" for ch, is_clipping in enumerate(new_clipping_high) if is_clipping])
                 + " Clipping"
             ) + "   "
-        if any(new_clipping_low):
-            clip_text += (
-                ", ".join([f"CH{ch+1}" for ch, is_clipping in enumerate(new_clipping_low) if is_clipping])
-                + " Clipping low"
-            )
+        # if any(new_clipping_low):
+        #     clip_text += (
+        #         ", ".join([f"CH{ch+1}" for ch, is_clipping in enumerate(new_clipping_low) if is_clipping])
+        #         + " Clipping low"
+        #     )
         self.clip_indicator_text.setText(clip_text)

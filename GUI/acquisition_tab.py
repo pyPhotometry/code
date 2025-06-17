@@ -126,6 +126,7 @@ class Acquisition_tab(QtWidgets.QWidget):
         self.settingsgroup_layout.addWidget(self.mode_select)
         self.settingsgroup_layout.addWidget(self.rate_label)
         self.settingsgroup_layout.addWidget(self.rate_text)
+        self.settingsgroup_layout.addStretch()
         self.settings_groupbox.setLayout(self.settingsgroup_layout)
 
         # Data directory groupbox
@@ -155,15 +156,29 @@ class Acquisition_tab(QtWidgets.QWidget):
 
         self.controls_groupbox = QtWidgets.QGroupBox("Control all")
 
-        self.control_select = QtWidgets.QComboBox()
-        self.control_select.setFixedWidth(95)
-        self.control_select.currentTextChanged.connect(self.control_select_changed)
-        self.control_button = QtWidgets.QPushButton("")
-        self.control_button.clicked.connect(lambda x: self.control_button_action())
+        self.connect_all_button = QtWidgets.QPushButton()
+        self.connect_all_button.setIcon(QtGui.QIcon("GUI/icons/connect.svg"))
+        self.connect_all_button.clicked.connect(
+            lambda: self.connect() if self.status == Status.DISCONNECTED else self.disconnect()
+        )
+
+        self.start_all_button = QtWidgets.QPushButton()
+        self.start_all_button.setIcon(QtGui.QIcon("GUI/icons/play.svg"))
+        self.start_all_button.clicked.connect(self.start)
+
+        self.record_all_button = QtWidgets.QPushButton()
+        self.record_all_button.setIcon(QtGui.QIcon("GUI/icons/record.svg"))
+        self.record_all_button.clicked.connect(self.record)
+
+        self.stop_all_button = QtWidgets.QPushButton()
+        self.stop_all_button.setIcon(QtGui.QIcon("GUI/icons/stop.svg"))
+        self.stop_all_button.clicked.connect(self.stop)
 
         self.controlgroup_layout = QtWidgets.QHBoxLayout()
-        self.controlgroup_layout.addWidget(self.control_select)
-        self.controlgroup_layout.addWidget(self.control_button)
+        self.controlgroup_layout.addWidget(self.connect_all_button)
+        self.controlgroup_layout.addWidget(self.start_all_button)
+        self.controlgroup_layout.addWidget(self.record_all_button)
+        self.controlgroup_layout.addWidget(self.stop_all_button)
         self.controls_groupbox.setLayout(self.controlgroup_layout)
 
         # Layout
@@ -175,12 +190,14 @@ class Acquisition_tab(QtWidgets.QWidget):
         self.scroll_area.setWidget(self.scroll_inner)
         self.scroll_area.setWidgetResizable(True)
 
-        self.grid_layout = QtWidgets.QGridLayout(self)
-        self.grid_layout.addWidget(self.config_groupbox, 1, 1)
-        self.grid_layout.addWidget(self.settings_groupbox, 1, 2)
-        self.grid_layout.addWidget(self.datadir_groupbox, 1, 3)
-        self.grid_layout.addWidget(self.controls_groupbox, 1, 4)
-        self.grid_layout.addWidget(self.scroll_area, 2, 1, 1, 4)
+        self.v_layout = QtWidgets.QVBoxLayout(self)
+        self.h_layout = QtWidgets.QHBoxLayout()
+        self.h_layout.addWidget(self.config_groupbox)
+        self.h_layout.addWidget(self.settings_groupbox)
+        self.h_layout.addWidget(self.controls_groupbox)
+        self.v_layout.addLayout(self.h_layout)
+        self.v_layout.addWidget(self.datadir_groupbox)
+        self.v_layout.addWidget(self.scroll_area)
 
         # Timers.
 
@@ -250,39 +267,28 @@ class Acquisition_tab(QtWidgets.QWidget):
             else:
                 self.controls_groupbox.setEnabled(True)
             if new_status == Status.DISCONNECTED:
-                self.control_select.clear()
-                self.control_select.addItems(["Connect"])
+                self.connect_all_button.setIcon(QtGui.QIcon("GUI/icons/connect.svg"))
+                self.connect_all_button.setEnabled(True)
+                self.start_all_button.setEnabled(False)
+                self.record_all_button.setEnabled(False)
+                self.stop_all_button.setEnabled(False)
             elif new_status == Status.STOPPED:
-                self.control_select.clear()
-                self.control_select.addItems(["Start", "Disconnect"])
+                self.connect_all_button.setIcon(QtGui.QIcon("GUI/icons/disconnect.svg"))
+                self.connect_all_button.setEnabled(True)
+                self.start_all_button.setEnabled(True)
+                self.record_all_button.setEnabled(False)
+                self.stop_all_button.setEnabled(False)
             elif new_status == Status.RUNNING:
-                self.control_select.clear()
-                if self.test_data_path():
-                    self.control_select.addItems(["Record", "Stop"])
-                else:
-                    self.control_select.addItems(["Stop"])
+                self.connect_all_button.setEnabled(False)
+                self.start_all_button.setEnabled(False)
+                self.test_data_path()
+                self.stop_all_button.setEnabled(True)
             elif new_status == Status.RECORDING:
-                self.control_select.clear()
-                self.control_select.addItems(["Stop"])
+                self.connect_all_button.setEnabled(False)
+                self.start_all_button.setEnabled(False)
+                self.record_all_button.setEnabled(False)
+                self.stop_all_button.setEnabled(True)
         self.status = new_status
-
-    def control_select_changed(self, control):
-        """Update control button icon and action to match selected function"""
-        if control == "Connect":
-            self.control_button.setIcon(QtGui.QIcon("GUI/icons/connect.svg"))
-            self.control_button_action = self.connect
-        elif control == "Start":
-            self.control_button.setIcon(QtGui.QIcon("GUI/icons/play.svg"))
-            self.control_button_action = self.start
-        elif control == "Record":
-            self.control_button.setIcon(QtGui.QIcon("GUI/icons/record.svg"))
-            self.control_button_action = self.record
-        elif control == "Stop":
-            self.control_button.setIcon(QtGui.QIcon("GUI/icons/stop.svg"))
-            self.control_button_action = self.stop
-        elif control == "Disconnect":
-            self.control_button.setIcon(QtGui.QIcon("GUI/icons/disconnect.svg"))
-            self.control_button_action = self.disconnect
 
     # Methods to apply operation to all setups.
 
@@ -345,7 +351,12 @@ class Acquisition_tab(QtWidgets.QWidget):
     def test_data_path(self):
         """Test whether all setups have a valid data path."""
         self.data_dir = Path(self.data_dir_text.text())
-        return True if all([box.test_data_path() for box in self.setupboxes]) else False
+        all_paths_OK = all([box.test_data_path() for box in self.setupboxes])
+        if all_paths_OK:
+            self.record_all_button.setEnabled(True)
+        else:
+            self.record_all_button.setEnabled(False)
+        return all_paths_OK
 
     def get_config(self):
         """Get the configuation of the tab as a Multitab_config object"""
@@ -464,7 +475,7 @@ class Setupbox(QtWidgets.QFrame):
 
         self.subject_label = QtWidgets.QLabel("Subject ID:")
         self.subject_text = QtWidgets.QLineEdit(self.subject_ID)
-        self.subject_text.textChanged.connect(self.test_data_path)
+        self.subject_text.textChanged.connect(self.acquisition_tab.test_data_path)
 
         self.current_label_1 = QtWidgets.QLabel("LED current (mA) Ch1:")
         self.current_spinbox_1 = QtWidgets.QSpinBox()
@@ -475,11 +486,11 @@ class Setupbox(QtWidgets.QFrame):
         self.current_spinbox_1.setValue(GUI_config.default_LED_current[0])
         self.current_spinbox_2.setValue(GUI_config.default_LED_current[1])
 
-        self.start_button = QtWidgets.QPushButton("Start")
+        self.start_button = QtWidgets.QPushButton()
         self.start_button.setIcon(QtGui.QIcon("GUI/icons/play.svg"))
-        self.record_button = QtWidgets.QPushButton("Record")
+        self.record_button = QtWidgets.QPushButton()
         self.record_button.setIcon(QtGui.QIcon("GUI/icons/record.svg"))
-        self.stop_button = QtWidgets.QPushButton("Stop")
+        self.stop_button = QtWidgets.QPushButton()
         self.stop_button.setIcon(QtGui.QIcon("GUI/icons/stop.svg"))
         self.start_button.clicked.connect(self.start)
         self.record_button.clicked.connect(self.record)
