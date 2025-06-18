@@ -66,7 +66,7 @@ class Signals_plot(QtWidgets.QWidget):
         self.ymax_spinbox.setSingleStep(0.05)
         self.ymax_spinbox.setValue(3.3)
         self.ymax_spinbox.valueChanged.connect(self.yrange_spinbox_changed)
-        self.demean_checkbox = QtWidgets.QCheckBox("De-mean signals")
+        self.demean_checkbox = QtWidgets.QCheckBox("De-mean plotted signals")
         self.demean_checkbox.stateChanged.connect(self.enable_disable_demean_mode)
         self.offset_label = QtWidgets.QLabel("Offset channels (mV):")
         self.offset_spinbox = QtWidgets.QSpinBox()

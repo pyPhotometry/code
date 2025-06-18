@@ -522,7 +522,6 @@ class Setupbox(QtWidgets.QFrame):
         self.Vlayout.addLayout(self.Hlayout)
         self.Vlayout.addWidget(QFrame(frameShape=QFrame.Shape.HLine, frameShadow=QFrame.Shadow.Sunken))
         self.Vlayout.addWidget(self.signals_plot)
-        self.Hlayout.addStretch()
 
         # Initial setup.
 
