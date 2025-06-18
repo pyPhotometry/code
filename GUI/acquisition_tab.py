@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
-from pyqtgraph.Qt.QtWidgets import QFrame
+from pyqtgraph.Qt.QtWidgets import QFrame, QMessageBox
 from serial import SerialException
 from dataclasses import dataclass, asdict
 from typing import List
@@ -301,8 +301,10 @@ class Acquisition_tab(QtWidgets.QWidget):
             box.start()
 
     def record(self):
+        if not self.check_unique_subject_IDs():
+            return
         for box in self.setupboxes:
-            box.record()
+            box.record(IDs_checked=True)
 
     def stop(self):
         for box in self.setupboxes:
@@ -368,6 +370,20 @@ class Acquisition_tab(QtWidgets.QWidget):
             file_type=self.filetype_select.currentText(),
             setup_configs=[box.get_config() for box in self.setupboxes],
         )
+
+    def check_unique_subject_IDs(self):
+        """Check all subject IDs are unique and display warning dialog if not."""
+        subject_IDs = [box.subject_ID for box in self.setupboxes if box.subject_ID]
+        repeated_IDs = [subject_ID for subject_ID in set(subject_IDs) if subject_IDs.count(subject_ID) > 1]
+        if repeated_IDs:
+            QMessageBox.warning(
+                None,
+                "Duplicate subject ID",
+                "All subject IDs must be unique. Duplicate subject IDs:\n\n" + ", ".join(repeated_IDs),
+            )
+            return False
+        else:
+            return True
 
     # Load and save tab configuration.
 
@@ -608,8 +624,10 @@ class Setupbox(QtWidgets.QFrame):
         self.status_text.setText("Running")
         self.signals_plot.info_overlay.start_acquisition()
 
-    def record(self):
+    def record(self, IDs_checked=False):
         """Start recording data to disk."""
+        if not (IDs_checked or self.acquisition_tab.check_unique_subject_IDs()):
+            return
         filetype = self.acquisition_tab.filetype_select.currentText()
         file_name = self.board.record(self.acquisition_tab.data_dir, self.subject_ID, filetype)
         self.clipboard.setText(file_name)
