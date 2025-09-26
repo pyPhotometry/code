@@ -42,17 +42,23 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
             'pulse_inds_y'  - Locations of rising edges on digital signal (samples).
             'pulse_times_y' - Times of rising edges on digital signal (ms).
     """
+
+    # Read data from file --------------------------------------------------------------
     with open(file_path, "rb") as f:
         header_size = int.from_bytes(f.read(2), "little")
         data_header = f.read(header_size)
         data = np.frombuffer(f.read(), dtype=np.dtype("<u2"))
-    # Extract header information
+
+    # Extract header information -------------------------------------------------------
     header_dict = json.loads(data_header)
     sampling_rate = header_dict["sampling_rate"]
     volts_per_division = header_dict["volts_per_division"][0]
     acquisition_mode = header_dict["mode"]
     version = parse_version(header_dict["version"])
-    # Get number of channels.
+    ADC_max_value = header_dict["ADC_max_value"] if version >= parse_version("1.1") else 1 << 15
+    clip_threshold = 0.98 * ADC_max_value * volts_per_division
+
+    # Get number of channels -----------------------------------------------------------
     if version < parse_version("1.0"):
         # Pre version 1.0 data files always have 2 digital and analog channels.
         n_analog_signals = 2
@@ -62,10 +68,8 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
         n_analog_signals = header_dict["n_analog_signals"]
         n_digital_signals = header_dict["n_digital_signals"]
         pulsed_mode = "pulsed" in acquisition_mode
-    # Get threshold for signal clipping.
-    ADC_max_value = header_dict["ADC_max_value"] if version >= parse_version("1.1") else 1 << 15
-    clip_threshold = 0.98 * ADC_max_value * volts_per_division
-    # Extract signals.
+
+    # Extract signals ------------------------------------------------------------------
     analog = data >> 1  # Analog signal is most significant 15 bits.
     digital = ((data & 1) == 1).astype(int)  # Digital signal is least significant bit.
     if (version >= parse_version("1.1")) and pulsed_mode:
@@ -83,9 +87,11 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
         analog_sigs = [analog[a::n_analog_signals] * volts_per_division for a in range(n_analog_signals)]
         digital_sigs = [digital[d::n_analog_signals] for d in range(n_digital_signals)]
         sigs_clipping = [analog_sig > clip_threshold for analog_sig in analog_sigs] if not pulsed_mode else None
-    # Compute sample times relative to start of recording (ms).
+
+    # Compute sample times relative to start of recording (ms) -------------------------
     time = np.arange(analog_sigs[0].shape[0]) * 1000 / sampling_rate
-    # Filter signals with specified high and low pass frequencies (Hz).
+
+    # Filter signals with specified high and low pass frequencies (Hz) -----------------
     if low_pass and high_pass:
         b, a = butter(2, np.array([high_pass, low_pass]) / (0.5 * sampling_rate), "bandpass")
     elif low_pass:
@@ -95,11 +101,13 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
     if low_pass or high_pass:
         analogs_filt = [filtfilt(b, a, analog_sig) for analog_sig in analog_sigs]
     else:
-        analogs_filt = [None * len(analog_sigs)]
-    # Extract rising edges for digital inputs.
+        analogs_filt = [None] * len(analog_sigs)
+
+    # Extract rising edges for digital inputs ------------------------------------------
     pulse_inds = [1 + np.where(np.diff(digital_sig) == 1)[0] for digital_sig in digital_sigs]
     pulse_times = [pulse_ind * 1000 / sampling_rate for pulse_ind in pulse_inds]
-    # Return signals + header information as a dictionary.
+
+    # Return signals + header information as a dictionary ------------------------------
     data_dict = {
         "filename": os.path.basename(file_path),
         "time": time,
@@ -123,6 +131,10 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
 # ----------------------------------------------------------------------------------
 # preprocess data
 # ----------------------------------------------------------------------------------
+
+
+class PreprocessingError(Exception):
+    pass
 
 
 def preprocess_data(
@@ -197,23 +209,24 @@ def preprocess_data(
         # Plot raw signals.
         fig = plt.figure(1, clear=True, figsize=[12, 8])
         ax1 = plt.subplot(2, 3, (1, 2))
-        plt.plot(t, signal, label="Signal")
-        plt.plot(t, signal_expfit, "k")
-        plt.plot(t, control, label="Control")
-        plt.plot(t, control_expfit, "k")
+        ds = int(sampling_rate / low_pass)  # Amount to decimate signals before plotting.
+        plt.plot(t[::ds], signal[::ds], label="Signal")
+        plt.plot(t[::ds], signal_expfit[::ds], "k")
+        plt.plot(t[::ds], control[::ds], label="Control")
+        plt.plot(t[::ds], control_expfit[::ds], "k")
         plt.legend(loc="upper right")
         plt.ylabel("Raw signal (Volts)")
         plt.xlim(0, t[-1])
         ax1.text(x=0, y=1.02, s=data_dict["filename"][:-4] if data_dict else "", transform=ax1.transAxes)
         # # Plot processed signal.
         plt.subplot(2, 3, (4, 5), sharex=ax1)
-        plt.plot(t, signal_norm)
+        plt.plot(t[::ds], signal_norm[::ds])
         plt.xlabel("Time (seconds)")
         plt.ylabel(f"Processed signal {normalisation}")
         plt.xlim(0, t[-1])
         ax2 = plt.subplot(2, 3, 3)
-        control_bc_dec = control_bc[::10]
-        signal_bc_dec = signal_bc[::10]
+        control_bc_dec = control_bc[::ds]
+        signal_bc_dec = signal_bc[::ds]
         plt.scatter(control_bc_dec, signal_bc_dec, alpha=0.1, marker=".")
         plt.xlim(1.5 * np.percentile(control_bc_dec, [1, 99]))
         plt.ylim(2 * np.percentile(signal_bc_dec, [1, 99]))
@@ -223,13 +236,14 @@ def preprocess_data(
         plt.ylabel("Signal (post bleaching correction)")
         ax2.text(x=0.05, y=0.95, s=f"slope: {slope :.2f}", transform=ax2.transAxes)
         plt.subplot(2, 3, 6)
-        plt.plot(t, signal_norm)
+        plt.plot(t[: 10 * sampling_rate], signal_norm[: 10 * sampling_rate])
         plt.xlim(0, 10)
         plt.xlabel("Time (seconds)")
         plt.ylabel(f"Processed signal {normalisation}")
         plt.tight_layout()
         if fig_path:
             fig.savefig(fig_path)
+            plt.close(fig)
     return signal_norm
 
 
@@ -246,7 +260,10 @@ def _fit_exponential(signal, t, sampling_rate):
     t_ds = decimate(t, sampling_rate)
     init_params = [max_sig / 2, max_sig / 4, max_sig / 4, 300, 3000]
     bounds = ([0, 0, 0, 60, 600], [max_sig, max_sig, max_sig, 600, 36000])
-    params, parm_cov = curve_fit(_double_exponential, t_ds, signal_ds, p0=init_params, bounds=bounds, maxfev=1000)
+    try:
+        params, parm_cov = curve_fit(_double_exponential, t_ds, signal_ds, p0=init_params, bounds=bounds, maxfev=10000)
+    except RuntimeError:
+        raise PreprocessingError("Double exponential fit did not converge.")
     return _double_exponential(t, *params)
 
 
