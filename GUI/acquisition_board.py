@@ -12,36 +12,33 @@ from datetime import datetime
 from time import sleep
 
 from GUI.pyboard import Pyboard, PyboardError
-from GUI.dir_paths import upy_dir, config_dir
+from GUI.dir_paths import upy_dir
 from config.GUI_config import VERSION, update_interval
-
-from config import hardware_config as hwc
-
-clipping_threshold = int(hwc.ADC_max_value * 0.98)
 
 
 class Acquisition_board(Pyboard):
     """Class for aquiring data from a micropython photometry system on a host computer."""
 
-    def __init__(self, port):
+    def __init__(self, port, device_config):
         """Open connection to pyboard and instantiate Photometry class on pyboard with
         provided parameters."""
+        self.config = device_config
         self.mode = None
         self.data_file = None
         self.running = False
         self.LED_current = [0, 0]
         self.file_type = None
         self.port = port
+        self.clipping_threshold = int(self.config["ADC_max_value"] * 0.98)
         super().__init__(port, baudrate=115200)
         self.enter_raw_repl()  # Reset pyboard.
         # Transfer firmware if not already on board.
         self.exec(getsource(_djb2_file))  # Define djb2 hashing function on board.
         self.exec(getsource(_receive_file))  # Define recieve file function on board.
         self.transfer_file(Path(upy_dir, "photometry_upy.py"))
-        self.transfer_file(Path(config_dir, "hardware_config.py"))
         # Import firmware and instantiate photometry class.
         self.exec("import photometry_upy")
-        self.exec("p = photometry_upy.Photometry()")
+        self.exec(f"p = photometry_upy.Photometry({repr(device_config)})")
 
     # -----------------------------------------------------------------------
     # Data acquisition.
@@ -59,11 +56,11 @@ class Acquisition_board(Pyboard):
         self.n_analog_signals = 3 if mode == "3EX_2EM_pulsed" else 2
         self.n_digital_signals = 1 if mode == "3EX_2EM_pulsed" else 2
         self.pulsed_mode = mode.split("_")[-1] == "pulsed"
-        self.max_LED_current = hwc.max_LED_current["pulsed" if self.pulsed_mode else "continuous"]
+        self.max_LED_current = self.config["max_LED_current"]["pulsed" if self.pulsed_mode else "continuous"]
         if self.pulsed_mode:
-            self.max_rate = hwc.max_sampling_rate["pulsed"] // self.n_analog_signals
+            self.max_rate = self.config["max_sampling_rate"]["pulsed"] // self.n_analog_signals
         else:
-            self.max_rate = hwc.max_sampling_rate["continuous"]
+            self.max_rate = self.config["max_sampling_rate"]["continuous"]
         self.set_sampling_rate(self.max_rate)
         self.exec("p.set_mode('{}')".format(mode))
 
@@ -115,8 +112,8 @@ class Acquisition_board(Pyboard):
             "n_digital_signals": self.n_digital_signals,
             "mode": self.mode,
             "sampling_rate": self.sampling_rate,
-            "volts_per_division": hwc.ADC_volts_per_division,
-            "ADC_max_value": hwc.ADC_max_value,
+            "volts_per_division": self.config["ADC_volts_per_division"],
+            "ADC_max_value": self.config["ADC_max_value"],
             "LED_current": self.LED_current,
             "version": VERSION,
         }
@@ -172,7 +169,8 @@ class Acquisition_board(Pyboard):
                 recieved_chunk_number = chunk[0]
                 checksum = chunk[1]
                 data = chunk[2:]
-                if checksum == (sum(data) & 0xFFFF):  # Checksum of data chunk is correct.
+                # if checksum == np.sum(data, dtype=np.uint64) & 0xFFFF:  # Checksum of data chunk is correct.
+                if checksum == sum(data) & 0xFFFF:  # Checksum of data chunk is correct.
                     self.chunk_number = (self.chunk_number + 1) & 0xFFFF
                     n_skipped_chunks = np.int16(recieved_chunk_number - self.chunk_number)  # rollover safe subtraction.
                     if n_skipped_chunks > 0:  # Prepend data with zeros to replace skipped chunks.
@@ -194,7 +192,7 @@ class Acquisition_board(Pyboard):
             if self.mode == "2EX_2EM_continuous":
                 signals = [analog[a :: self.n_analog_signals] for a in range(self.n_analog_signals)]  # [signal1, ...]
                 DIs = [digital[d :: self.n_analog_signals] for d in range(self.n_digital_signals)]  # [DI1, ..., DIn]
-                clipping_high = [np.any(signal > clipping_threshold) for signal in signals]
+                clipping_high = [np.any(signal > self.clipping_threshold) for signal in signals]
                 clipping_low = [np.all(signal == 0) for signal in signals]
 
             else:  # Pulsed modes
@@ -209,7 +207,7 @@ class Acquisition_board(Pyboard):
                 ]
                 # Evaluate if signal is clipping for each channel.
                 clipping_high = [
-                    np.any(LED_on_signal > clipping_threshold) or np.any(baseline > clipping_threshold)
+                    np.any(LED_on_signal > self.clipping_threshold) or np.any(baseline > self.clipping_threshold)
                     for LED_on_signal, baseline in zip(LED_on_signals, baselines)
                 ]
                 clipping_low = [

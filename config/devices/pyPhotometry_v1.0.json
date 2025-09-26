@@ -1,0 +1,32 @@
+{
+  "pins": {
+    "analog_1": "X11",
+    "analog_2": "X12",
+    "digital_1": "Y7",
+    "digital_2": "Y8"
+  },
+
+  "LED_calibration": {
+    "slope": 38.15,
+    "offset": 6.26
+  },
+
+  "ADC_volts_per_division": [0.00010122, 0.00010122],
+
+  "ADC_max_value": 32768,
+
+  "max_sampling_rate": {
+    "continuous": 1000,
+    "pulsed": 260
+  },
+
+  "max_LED_current": {
+    "continuous": 100,
+    "pulsed": 100
+  },
+
+  "oversampling_rate": {
+    "continuous": 300000,
+    "pulsed": 256000
+  }
+}

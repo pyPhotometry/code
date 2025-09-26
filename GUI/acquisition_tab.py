@@ -12,6 +12,7 @@ from GUI.acquisition_board import Acquisition_board
 from GUI.pyboard import PyboardError
 from GUI.plotting import Signals_plot
 from GUI.dir_paths import experiments_dir, data_dir
+from GUI.utility import set_cbox_item, cbox_update_options
 
 # ----------------------------------------------------------------------------------------
 #  Acquisition_tab
@@ -45,32 +46,11 @@ class Status(Enum):
     MIXED_NOTRUNNING = 5
 
 
-def set_cbox_item(cbox, item_name):
-    """Set the selected item on a combobox by passing the item name.  If name is not
-    valid then selected item is not changed."""
-    index = cbox.findText(item_name, QtCore.Qt.MatchFlag.MatchFixedString)
-    if index >= 0:
-        cbox.setCurrentIndex(index)
-
-
-def cbox_update_options(cbox, options):
-    """Update the options available in a qcombobox without changing the selection."""
-    selected = str(cbox.currentText())
-    if selected:
-        available = sorted(list(set([selected] + options)), key=str.lower)
-        i = available.index(selected)
-    else:  # cbox is currently empty.
-        available = sorted(list(options), key=str.lower)
-        i = 0
-    cbox.clear()
-    cbox.addItems(available)
-    cbox.setCurrentIndex(i)
-
-
 class Acquisition_tab(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(QtWidgets.QWidget, self).__init__(parent)
         self.GUI_main = self.parent()
+        self.setups_tab = self.GUI_main.setups_tab
 
         # Variables.
         self.status = None
@@ -433,8 +413,8 @@ class Acquisition_tab(QtWidgets.QWidget):
     def refresh(self):
         """Called regularly when no setups are running"""
         # Handle connected/disconnected setups.
-        if self.GUI_main.setups_tab.setups_changed:
-            setup_labels = self.GUI_main.setups_tab.get_setup_labels()
+        if self.setups_tab.setups_changed:
+            setup_labels = self.setups_tab.get_setup_labels()
             for box in self.setupboxes:
                 box.update_setups(setup_labels)
         # Enable/disable save button.
@@ -550,14 +530,19 @@ class Setupbox(QtWidgets.QFrame):
     def connect(self):
         """Connect to a pyboard."""
         try:
-            serial_port = self.setups_tab.get_setup_port(self.port_select.currentText())
-            if not serial_port:
+            setup = self.setups_tab.get_setup_by_label(self.port_select.currentText())
+            if not setup:
                 self.status_text.setText("Connection failed")
                 return
+            serial_port = setup.port
+            if not setup.device_type:
+                setup.open_device_select_dialog()
+            device_config = self.setups_tab.device_configs[setup.device_type]
+
             self.status_text.setText("Connecting")
             self.connect_button.setEnabled(False)
             self.acquisition_tab.GUI_main.app.processEvents()
-            self.board = Acquisition_board(serial_port)
+            self.board = Acquisition_board(serial_port, device_config)
             self.select_mode(self.acquisition_tab.mode_select.currentText())
             self.port_select.setEnabled(False)
             self.subject_text.setEnabled(True)

@@ -6,6 +6,8 @@ experiments_dir = Path(pyphotometry_dir, "experiments")
 
 config_dir = Path(pyphotometry_dir, "config")
 
+devices_dir = Path(pyphotometry_dir, "config", "devices")
+
 data_dir = Path(pyphotometry_dir, "data")
 
 upy_dir = Path(pyphotometry_dir, "uPy")

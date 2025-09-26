@@ -9,16 +9,15 @@ from array import array
 
 micropython.alloc_emergency_exception_buf(100)  # Allocate space for error messages raised during interrupt processing.
 
-import hardware_config as hwc
-
 # Photometry class.
 
 
 class Photometry:
-    def __init__(self):
-        self.ADC1 = pyb.ADC(hwc.pins["analog_1"])
-        self.ADC2 = pyb.ADC(hwc.pins["analog_2"])
-        self.DI1 = pyb.Pin(hwc.pins["digital_1"], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+    def __init__(self, device_config):
+        self.config = device_config
+        self.ADC1 = pyb.ADC(self.config["pins"]["analog_1"])
+        self.ADC2 = pyb.ADC(self.config["pins"]["analog_2"])
+        self.DI1 = pyb.Pin(self.config["pins"]["digital_1"], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
         self.DI2 = None
         self.LED1 = pyb.DAC(1, bits=12)
         self.LED2 = pyb.DAC(2, bits=12)
@@ -35,16 +34,16 @@ class Photometry:
         assert mode in ["2EX_2EM_continuous", "2EX_1EM_pulsed", "2EX_2EM_pulsed", "3EX_2EM_pulsed"], "Invalid mode."
         self.mode = mode
         if mode == "2EX_2EM_continuous":
-            self.oversampling_rate = hwc.oversampling_rate["continuous"]
+            self.oversampling_rate = self.config["oversampling_rate"]["continuous"]
         else:
-            self.oversampling_rate = hwc.oversampling_rate["pulsed"]
+            self.oversampling_rate = self.config["oversampling_rate"]["pulsed"]
         if self.mode == "3EX_2EM_pulsed":  # Use Digital_2 as LED output.
-            self.LED3 = pyb.Pin(hwc.pins["digital_2"], pyb.Pin.OUT, pyb.Pin.PULL_DOWN)
+            self.LED3 = pyb.Pin(self.config["pins"]["digital_2"], pyb.Pin.OUT, pyb.Pin.PULL_DOWN)
             self.DI2 = None
             self.n_analog_signals = 3
             self.n_digital_signals = 1
         else:  # Use Digital_2 as digital input.
-            self.DI2 = pyb.Pin(hwc.pins["digital_2"], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+            self.DI2 = pyb.Pin(self.config["pins"]["digital_2"], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
             self.LED3 = None
             self.n_digital_signals = 2
             self.n_analog_signals = 2
@@ -55,14 +54,18 @@ class Photometry:
             if LED_1_current == 0:
                 self.LED_1_value = 0
             else:
-                self.LED_1_value = int(hwc.LED_calibration["slope"] * LED_1_current + hwc.LED_calibration["offset"])
+                self.LED_1_value = int(
+                    self.config["LED_calibration"]["slope"] * LED_1_current + self.config["LED_calibration"]["offset"]
+                )
             if self.running and (self.mode == "2EX_2EM_continuous"):
                 self.LED1.write(self.LED_1_value)
         if LED_2_current is not None:
             if LED_2_current == 0:
                 self.LED_2_value = 0
             else:
-                self.LED_2_value = int(hwc.LED_calibration["slope"] * LED_2_current + hwc.LED_calibration["offset"])
+                self.LED_2_value = int(
+                    self.config["LED_calibration"]["slope"] * LED_2_current + self.config["LED_calibration"]["offset"]
+                )
             if self.running and (self.mode == "2EX_2EM_continuous"):
                 self.LED2.write(self.LED_2_value)
 
