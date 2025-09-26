@@ -1,7 +1,7 @@
-# This script demonstrates how to aquire data using the Acquisition_board class
-# without using the GUI.
+# This script demonstrates how to aquire data using the Acquisition_board class without using the GUI.
 
 import time
+import json
 import sys
 from pathlib import Path
 
@@ -10,10 +10,14 @@ pyphotometry_dir = str(Path(__file__).parents[1])
 sys.path.append(pyphotometry_dir)
 
 from GUI.acquisition_board import Acquisition_board
-from GUI.dir_paths import data_dir
+from GUI.dir_paths import data_dir, devices_dir
+
+# Load device config file for acquisition board type.
+with open(Path(devices_dir, "pyPhotometry_v1.0.json"), "r") as file:
+    device_config = json.load(file)
 
 # Connect to board.
-board = Acquisition_board(port="COM1")  # Set port to match that shown for board in GUI.
+board = Acquisition_board(port="COM1", device_config=device_config)  # Set port to match that shown for board in GUI.
 
 # Set acqusition parameters.
 board.set_mode("2EX_2EM_pulsed")
