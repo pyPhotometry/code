@@ -61,7 +61,6 @@ class Acquisition_board(Pyboard):
             self.max_rate = self.config["max_sampling_rate"]["pulsed"] // self.n_analog_signals
         else:
             self.max_rate = self.config["max_sampling_rate"]["continuous"]
-        self.set_sampling_rate(self.max_rate)
         self.exec("p.set_mode('{}')".format(mode))
 
     def set_LED_current(self, LED_1_current=None, LED_2_current=None):
@@ -84,16 +83,15 @@ class Acquisition_board(Pyboard):
             self.exec("p.set_LED_current({},{})".format(LED_1_current, LED_2_current))
 
     def set_sampling_rate(self, sampling_rate):
-        self.sampling_rate = int(min(sampling_rate, self.max_rate))
+        self.sampling_rate = sampling_rate
         self.buffer_size = max(
             2 * self.n_analog_signals, int(self.sampling_rate // (1000 / update_interval)) * 2 * self.n_analog_signals
         )
         self.serial_chunk_size = (self.buffer_size + 2) * 2
-        return self.sampling_rate
 
-    def start(self):
+    def start(self, sync_out_config):
         """Start data aquistion and streaming on the pyboard."""
-        self.exec_raw_no_follow("p.start({},{})".format(self.sampling_rate, self.buffer_size))
+        self.exec_raw_no_follow("p.start({},{},{})".format(self.sampling_rate, self.buffer_size, sync_out_config))
         self.chunk_number = 0  # Number of data chunks recieved from board, modulo 2**16.
         self.running = True
 
@@ -169,8 +167,8 @@ class Acquisition_board(Pyboard):
                 recieved_chunk_number = chunk[0]
                 checksum = chunk[1]
                 data = chunk[2:]
-                # if checksum == np.sum(data, dtype=np.uint64) & 0xFFFF:  # Checksum of data chunk is correct.
                 if checksum == sum(data) & 0xFFFF:  # Checksum of data chunk is correct.
+                    # if checksum == np.sum(data, dtype=np.uint64) & 0xFFFF:  # Checksum of data chunk is correct.
                     self.chunk_number = (self.chunk_number + 1) & 0xFFFF
                     n_skipped_chunks = np.int16(recieved_chunk_number - self.chunk_number)  # rollover safe subtraction.
                     if n_skipped_chunks > 0:  # Prepend data with zeros to replace skipped chunks.

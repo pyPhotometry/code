@@ -17,8 +17,6 @@ class Photometry:
         self.config = device_config
         self.ADC1 = pyb.ADC(self.config["pins"]["analog_1"])
         self.ADC2 = pyb.ADC(self.config["pins"]["analog_2"])
-        self.DI1 = pyb.Pin(self.config["pins"]["digital_1"], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
-        self.DI2 = None
         self.LED1 = pyb.DAC(1, bits=12)
         self.LED2 = pyb.DAC(2, bits=12)
         self.LED3 = None
@@ -69,7 +67,7 @@ class Photometry:
             if self.running and (self.mode == "2EX_2EM_continuous"):
                 self.LED2.write(self.LED_2_value)
 
-    def start(self, sampling_rate, buffer_size):
+    def start(self, sampling_rate, buffer_size, sync_out=False):
         # Start acquisition, stream data to computer, wait for ctrl+c over serial to stop.
         self.buffer_size = buffer_size
         self.sample_buffers = (array("H", [0] * buffer_size), array("H", [0] * buffer_size))
@@ -84,6 +82,19 @@ class Photometry:
         self.write_ind = 0  # Buffer index to write new data to.
         self.buffer_ready = False  # Set to True when full buffer is ready to send.
         self.chunk_number = 0  # Number of data chunks sent to computer, modulo 2**16.
+        self.sync_out = sync_out
+        if self.sync_out:  # Digital 1 pin used to output sync pulses.
+            self.sync_pin = pyb.Pin(self.config["pins"]["digital_1"], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+            self.sync_pulse_state = False
+            self.sync_counter = 0
+            self.sync_next_IPI = 0
+            # Compute pulse duration and inter-pulse-intervals in sample.
+            self.sync_pulse_dur = int(sampling_rate * self.sync_out["pulse_duration_ms"] / 1000)
+            self.sync_min_IPI = int(sampling_rate * self.sync_out["inter_pulse_interval_ms"][0] / 1000)
+            self.sync_max_IPI = int(sampling_rate * self.sync_out["inter_pulse_interval_ms"][1] / 1000)
+            self.sync_rng_divisor = int((1 << 30) / (self.sync_max_IPI - self.sync_min_IPI))
+        else:  # Digital 1 pin used as an input.
+            self.DI1 = pyb.Pin(self.config["pins"]["digital_1"], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
         self.running = True
         self.ovs_timer.init(freq=self.oversampling_rate)
         self.usb_serial.setinterrupt(-1)  # Disable serial interrupt.
@@ -120,12 +131,26 @@ class Photometry:
         self.usb_serial.setinterrupt(3)  # Enable serial interrupt.
         gc.enable()
 
+    def sync_pulse_update(self):
+        if self.sync_counter == self.sync_next_IPI:
+            self.sync_pin.value(1)
+            self.sync_pulse_state = True
+            self.sync_counter = 0
+            self.sync_next_IPI = self.sync_min_IPI + pyb.rng() // self.sync_rng_divisor
+        elif self.sync_counter == self.sync_pulse_dur:
+            self.sync_pin.value(0)  # Turn off sync pulse.
+            self.sync_pulse_state = False
+        self.sync_counter += 1
+
     @micropython.native
     def continuous_ISR(self, t):
         # Interrupt service routine for 2 color continous acquisition mode.
+        if self.sync_out:
+            self.sync_pulse_update()
         self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)  # Read sample of analog 1.
         self.sample = sum(self.ovs_buffer) >> 3
-        self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | self.DI1.value()
+        DI1_value = self.sync_pulse_state if self.sync_out else self.DI1.value()
+        self.sample_buffers[self.write_buf][self.write_ind] = (self.sample << 1) | DI1_value
         self.write_ind += 1
         self.ADC2.read_timed(self.ovs_buffer, self.ovs_timer)  # Read sample of analog 2.
         self.sample = sum(self.ovs_buffer) >> 3
@@ -161,8 +186,10 @@ class Photometry:
 
         # Read sample, turn off LED.
         if self.channel == 0:  # Photoreciever=1, LED=1.
+            if self.sync_out:
+                self.sync_pulse_update()
             self.ADC1.read_timed(self.ovs_buffer, self.ovs_timer)
-            self.dig_sample = self.DI1.value()
+            self.dig_sample = self.sync_pulse_state if self.sync_out else self.DI1.value()
             self.LED1.write(0)
         elif self.channel == 1:
             if self.mode == "2EX_1EM_pulsed":  # Photoreciever=1, LED=2.

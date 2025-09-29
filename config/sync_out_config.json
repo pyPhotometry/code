@@ -1,0 +1,4 @@
+{
+    "inter_pulse_interval_ms": [1000, 5000],
+    "pulse_duration_ms": 100
+}

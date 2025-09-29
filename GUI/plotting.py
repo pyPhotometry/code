@@ -75,8 +75,8 @@ class Signals_plot(QtWidgets.QWidget):
         self.offset_spinbox.setMaximum(500)
         self.offset_spinbox.setValue(100)
         self.offset_spinbox.setFixedWidth(50)
-        self.lowpass_button = QtWidgets.QPushButton("Lowpass filter")
-        self.lowpass_button.setCheckable(True)
+        self.lowpass_checkbox = QtWidgets.QCheckBox(text="Lowpass filter")
+        self.lowpass_checkbox.setCheckable(True)
         self.etp_checkbox = QtWidgets.QCheckBox("Event triggered plot")
         self.etp_checkbox.stateChanged.connect(self.show_hide_event_triggered_plot)
         self.controls_layout = QtWidgets.QHBoxLayout()
@@ -88,7 +88,7 @@ class Signals_plot(QtWidgets.QWidget):
         self.controls_layout.addWidget(self.ymax_label)
         self.controls_layout.addWidget(self.ymax_spinbox)
         self.controls_layout.addWidget(QFrame(frameShape=QFrame.Shape.VLine, frameShadow=QFrame.Shadow.Sunken))
-        self.controls_layout.addWidget(self.lowpass_button)
+        self.controls_layout.addWidget(self.lowpass_checkbox)
         self.controls_layout.addWidget(QFrame(frameShape=QFrame.Shape.VLine, frameShadow=QFrame.Shadow.Sunken))
         self.controls_layout.addWidget(self.demean_checkbox)
         self.controls_layout.addWidget(self.offset_label)
@@ -130,7 +130,12 @@ class Signals_plot(QtWidgets.QWidget):
         self.DI_shaders[0].reset(self.DIs[0], self.x)
         self.DI_shaders[1].reset(self.DIs[1], self.x)
         self.event_triggered_plot.reset(sampling_rate)
-        self.filter_BA = butter(2, 10 / (0.5 * sampling_rate), "low")
+        if sampling_rate > 50:
+            self.filter_BA = butter(2, 10, "low", fs=sampling_rate)
+            self.lowpass_checkbox.setEnabled(True)
+        else:
+            self.lowpass_checkbox.setChecked(False)
+            self.lowpass_checkbox.setEnabled(False)
 
     def update(self, new_data):
         new_signals, new_DIs, new_clipping_high, new_clipping_low = new_data
@@ -145,7 +150,7 @@ class Signals_plot(QtWidgets.QWidget):
                 )
             else:
                 y = self.signals[i].history
-            if self.lowpass_button.isChecked():  # Lowpass filter signal
+            if self.lowpass_checkbox.isChecked():  # Lowpass filter signal
                 if np.any(np.isnan(y)):
                     y[np.isnan(y)] = 0
                 y = filtfilt(*self.filter_BA, y)

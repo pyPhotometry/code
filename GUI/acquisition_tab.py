@@ -11,8 +11,10 @@ import config.GUI_config as GUI_config
 from GUI.acquisition_board import Acquisition_board
 from GUI.pyboard import PyboardError
 from GUI.plotting import Signals_plot
-from GUI.dir_paths import experiments_dir, data_dir
+from GUI.dir_paths import experiments_dir, data_dir, config_dir
 from GUI.utility import set_cbox_item, cbox_update_options
+
+AlignVCenter = QtCore.Qt.AlignmentFlag.AlignVCenter
 
 # ----------------------------------------------------------------------------------------
 #  Acquisition_tab
@@ -32,6 +34,7 @@ class Multitab_config:
     n_setups: int
     mode: str
     sampling_rate: int
+    sync_out: bool
     data_dir: str
     file_type: str
     setup_configs: List[Setup_config]
@@ -95,17 +98,21 @@ class Acquisition_tab(QtWidgets.QWidget):
         self.mode_select = QtWidgets.QComboBox()
         self.mode_select.addItems(GUI_config.available_acquisition_modes)
         set_cbox_item(self.mode_select, GUI_config.default_acquisition_mode)
-        self.mode_select.textActivated[str].connect(self.select_mode)
+        self.mode_select.currentTextChanged[str].connect(self.select_mode)
         self.rate_label = QtWidgets.QLabel("Sampling rate (Hz):")
-        self.rate_text = QtWidgets.QLineEdit()
-        self.rate_text.setFixedWidth(40)
-        self.rate_text.textChanged.connect(self.rate_text_change)
+        self.rate_spinbox = QtWidgets.QSpinBox()
+        self.rate_spinbox.setFixedWidth(50)
+        self.sync_out_label = QtWidgets.QLabel("Sync-out:")
+        self.sync_out_checkbox = QtWidgets.QCheckBox()
+        self.sync_out_checkbox.stateChanged.connect(self.toggle_sync_out)
 
         self.settingsgroup_layout = QtWidgets.QHBoxLayout()
-        self.settingsgroup_layout.addWidget(self.mode_label)
-        self.settingsgroup_layout.addWidget(self.mode_select)
-        self.settingsgroup_layout.addWidget(self.rate_label)
-        self.settingsgroup_layout.addWidget(self.rate_text)
+        self.settingsgroup_layout.addWidget(self.mode_label, alignment=AlignVCenter)
+        self.settingsgroup_layout.addWidget(self.mode_select, alignment=AlignVCenter)
+        self.settingsgroup_layout.addWidget(self.rate_label, alignment=AlignVCenter)
+        self.settingsgroup_layout.addWidget(self.rate_spinbox, alignment=AlignVCenter)
+        self.settingsgroup_layout.addWidget(self.sync_out_label, alignment=AlignVCenter)
+        self.settingsgroup_layout.addWidget(self.sync_out_checkbox, alignment=AlignVCenter)
         self.settingsgroup_layout.addStretch()
         self.settings_groupbox.setLayout(self.settingsgroup_layout)
 
@@ -186,6 +193,8 @@ class Acquisition_tab(QtWidgets.QWidget):
 
         # Initial state
 
+        self.select_mode(self.mode_select.currentText())
+        self.toggle_sync_out()
         self.add_remove_setups(1)
         self.update_status()
 
@@ -295,20 +304,11 @@ class Acquisition_tab(QtWidgets.QWidget):
             box.disconnect()
 
     def select_mode(self, mode):
+        max_sampling_rate = self.setups_tab.get_max_sampling_rate(mode)
+        self.rate_spinbox.setRange(0, max_sampling_rate)
+        self.rate_spinbox.setValue(max_sampling_rate)
         for box in self.setupboxes:
             box.select_mode(mode)
-
-    def rate_text_change(self, text):
-        if text:
-            try:
-                sampling_rate = int(text)
-            except ValueError:
-                self.rate_text.setText("")
-                return
-            for box in self.setupboxes:
-                if box.board:
-                    set_rate = box.board.set_sampling_rate(sampling_rate)
-                    self.rate_text.setText(str(set_rate))
 
     def set_full_Yscale(self):
         for box in self.setupboxes:
@@ -321,6 +321,18 @@ class Acquisition_tab(QtWidgets.QWidget):
     def toggle_demean_mode(self):
         for box in self.setupboxes:
             box.signals_plot.demean_checkbox.setChecked(not box.signals_plot.demean_checkbox.isChecked())
+
+    def toggle_sync_out(self):
+        if self.sync_out_checkbox.isChecked():
+            with open(Path(config_dir, "sync_out_config.json"), "r") as file:
+                self.sync_out_config = json.load(file)
+            for box in self.setupboxes:
+                box.signals_plot.etp_checkbox.setChecked(False)
+                box.signals_plot.etp_checkbox.setEnabled(False)
+        else:
+            self.sync_out_config = False
+            for box in self.setupboxes:
+                box.signals_plot.etp_checkbox.setEnabled(True)
 
     # Data path methods.
 
@@ -345,7 +357,8 @@ class Acquisition_tab(QtWidgets.QWidget):
         return Multitab_config(
             n_setups=self.setups_spinbox.value(),
             mode=self.mode_select.currentText(),
-            sampling_rate=self.rate_text.text(),
+            sampling_rate=self.rate_spinbox.value(),
+            sync_out=self.sync_out_checkbox.isChecked(),
             data_dir=self.data_dir_text.text(),
             file_type=self.filetype_select.currentText(),
             setup_configs=[box.get_config() for box in self.setupboxes],
@@ -371,7 +384,8 @@ class Acquisition_tab(QtWidgets.QWidget):
         """Set the configuration of the tab from a Multitab_config object"""
         self.setups_spinbox.setValue(multitab_config.n_setups)
         self.mode_select.setCurrentIndex(self.mode_select.findText(multitab_config.mode))
-        self.rate_text.setText(multitab_config.sampling_rate)
+        self.rate_spinbox.setValue(multitab_config.sampling_rate)
+        self.sync_out_checkbox.setChecked(multitab_config.sync_out)
         self.data_dir_text.setText(multitab_config.data_dir)
         self.filetype_select.setCurrentIndex(self.filetype_select.findText(multitab_config.file_type))
         for box, setup_config_dict in zip(self.setupboxes, multitab_config.setup_configs):
@@ -479,6 +493,8 @@ class Setupbox(QtWidgets.QFrame):
         self.current_label_2 = QtWidgets.QLabel("Ch2:")
         self.current_spinbox_2 = QtWidgets.QSpinBox()
         self.current_spinbox_2.setFixedWidth(50)
+        self.current_spinbox_1.setRange(0, 999)
+        self.current_spinbox_2.setRange(0, 999)
         self.current_spinbox_1.setValue(GUI_config.default_LED_current[0])
         self.current_spinbox_2.setValue(GUI_config.default_LED_current[1])
 
@@ -544,6 +560,7 @@ class Setupbox(QtWidgets.QFrame):
             self.acquisition_tab.GUI_main.app.processEvents()
             self.board = Acquisition_board(serial_port, device_config)
             self.select_mode(self.acquisition_tab.mode_select.currentText())
+            self.board.set_sampling_rate(self.acquisition_tab.rate_spinbox.value())
             self.port_select.setEnabled(False)
             self.subject_text.setEnabled(True)
             self.current_spinbox_1.setEnabled(True)
@@ -595,9 +612,10 @@ class Setupbox(QtWidgets.QFrame):
 
     def start(self):
         """Start data acqusition"""
-        self.select_mode(self.acquisition_tab.mode_select.currentText())
+        # self.select_mode(self.acquisition_tab.mode_select.currentText())
+        self.board.set_sampling_rate(self.acquisition_tab.rate_spinbox.value())
         self.signals_plot.reset(self.board.sampling_rate)
-        self.board.start()
+        self.board.start(self.acquisition_tab.sync_out_config)
         self.status = Status.RUNNING
         self.acquisition_tab.update_status()
         # Update UI.
@@ -660,7 +678,6 @@ class Setupbox(QtWidgets.QFrame):
         """Set the acqusition mode."""
         if self.board and not (self.board.mode == mode):
             self.board.set_mode(mode)
-            self.acquisition_tab.rate_text.setText(str(self.board.sampling_rate))
             self.current_spinbox_1.setRange(0, self.board.max_LED_current)
             self.current_spinbox_2.setRange(0, self.board.max_LED_current)
             if self.current_spinbox_1.value() > self.board.max_LED_current:
