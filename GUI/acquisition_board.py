@@ -167,8 +167,7 @@ class Acquisition_board(Pyboard):
                 recieved_chunk_number = chunk[0]
                 checksum = chunk[1]
                 data = chunk[2:]
-                if checksum == sum(data) & 0xFFFF:  # Checksum of data chunk is correct.
-                    # if checksum == np.sum(data, dtype=np.uint64) & 0xFFFF:  # Checksum of data chunk is correct.
+                if checksum == int(np.sum(data, dtype=np.uint64)) & 0xFFFF:  # Checksum of data chunk is correct.
                     self.chunk_number = (self.chunk_number + 1) & 0xFFFF
                     n_skipped_chunks = np.int16(recieved_chunk_number - self.chunk_number)  # rollover safe subtraction.
                     if n_skipped_chunks > 0:  # Prepend data with zeros to replace skipped chunks.

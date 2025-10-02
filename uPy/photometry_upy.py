@@ -84,7 +84,7 @@ class Photometry:
         self.chunk_number = 0  # Number of data chunks sent to computer, modulo 2**16.
         self.sync_out = sync_out
         if self.sync_out:  # Digital 1 pin used to output sync pulses.
-            self.sync_pin = pyb.Pin(self.config["pins"]["digital_1"], pyb.Pin.IN, pyb.Pin.PULL_DOWN)
+            self.sync_pin = pyb.Pin(self.config["pins"]["digital_1"], pyb.Pin.OUT, pyb.Pin.PULL_DOWN)
             self.sync_pulse_state = False
             self.sync_counter = 0
             self.sync_next_IPI = 0
