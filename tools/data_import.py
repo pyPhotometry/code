@@ -55,12 +55,10 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
     volts_per_division = header_dict["volts_per_division"][0]
     acquisition_mode = header_dict["mode"]
     version = parse_version(header_dict["version"])
-    ADC_max_value = header_dict["ADC_max_value"] if version >= parse_version("1.1") else 1 << 15
-    clip_threshold = 0.98 * ADC_max_value * volts_per_division
 
-    # Get number of channels -----------------------------------------------------------
+    # Get version specfic info ---------------------------------------------------------
+
     if version < parse_version("1.0"):
-        # Pre version 1.0 data files always have 2 digital and analog channels.
         n_analog_signals = 2
         n_digital_signals = 2
         pulsed_mode = "time div" in acquisition_mode
@@ -69,11 +67,18 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
         n_digital_signals = header_dict["n_digital_signals"]
         pulsed_mode = "pulsed" in acquisition_mode
 
+    if version >= parse_version("1.1"):
+        has_baselines = pulsed_mode
+        ADC_max_value = header_dict["ADC_max_value"]
+    else:
+        has_baselines = False
+        ADC_max_value = 1 << 15
+
     # Extract signals ------------------------------------------------------------------
     analog = data >> 1  # Analog signal is most significant 15 bits.
     digital = ((data & 1) == 1).astype(int)  # Digital signal is least significant bit.
-    if (version >= parse_version("1.1")) and pulsed_mode:
-        # Version >= 1.1 saves raw LED-on and LED-off (baseline) samples in pulsed mode.
+    clip_threshold = 0.98 * ADC_max_value * volts_per_division
+    if has_baselines:  # Raw LED-on and LED-off (baseline) samples saved seperately.
         LED_on_sigs = [analog[2 * a :: 2 * n_analog_signals] * volts_per_division for a in range(n_analog_signals)]
         baselines = [analog[2 * a + 1 :: 2 * n_analog_signals] * volts_per_division for a in range(n_analog_signals)]
         # Compute baseline subtracted signals by subtracting baseline from LED-on signal.
@@ -83,7 +88,7 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
             np.maximum(LED_on_sig, baseline) > clip_threshold for LED_on_sig, baseline in zip(LED_on_sigs, baselines)
         ]
         digital_sigs = [digital[2 * d :: 2 * n_analog_signals] for d in range(n_digital_signals)]
-    else:  # Version < 1.1 does baseline subtraction before saving signals.
+    else:  # Any baseline subtraction was done before saving signals.
         analog_sigs = [analog[a::n_analog_signals] * volts_per_division for a in range(n_analog_signals)]
         digital_sigs = [digital[d::n_analog_signals] for d in range(n_digital_signals)]
         sigs_clipping = [analog_sig > clip_threshold for analog_sig in analog_sigs] if not pulsed_mode else None
@@ -115,7 +120,7 @@ def import_ppd(file_path, low_pass=20, high_pass=0.01):
     for a in range(n_analog_signals):
         data_dict[f"analog_{a+1}"] = analog_sigs[a]
         data_dict[f"analog_{a+1}_filt"] = analogs_filt[a]
-        if version >= parse_version("1.1") and pulsed_mode:
+        if has_baselines:
             data_dict[f"analog_{a+1}_raw_LED_on"] = LED_on_sigs[a]
             data_dict[f"analog_{a+1}_raw_baseline"] = baselines[a]
         if sigs_clipping:
